@@ -1,0 +1,15 @@
+# pip install -r requirements.txt
+
+fire
+
+bottle
+
+cheroot
+
+requests
+
+loguru
+
+simplejson==3.19.1
+
+psutil

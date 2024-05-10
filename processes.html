@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <div class="container">
+        <h2>
+            进程列表
+        </h2>
+        <p style="display: block; overflow: auto; white-space: nowrap;">
+<button onclick=" 
+const pids = []; 
+document.querySelectorAll(`table > tbody tr td input[type='checkbox']:checked`).forEach(checkbox => pids.push(checkbox.value)); 
+if (pids.length == 0) { alert('你还没有选择任何一项'); return; }
+if (!confirm('已选择 ' + pids.length + ' 项，' + '你确定吗？')) return; this.disabled = true;
+(() => {
+fetch('terminate_process?pid=' + encodeURIComponent(pids.join(',')))
+.then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
+})();
+void(0);" style="color: red;">终止所选</button>
+        <table class="table table-striped" border="1" cellspacing="0">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" onclick="document.querySelectorAll(`table > tbody tr td input[type='checkbox']`).forEach(checkbox => checkbox.checked = this.checked);"></th>
+                    <th>PID</th>
+                    <th>名称</th>
+                    <th>命令行</th>
+                    <th>工作目录</th>
+                    <th>状态</th>
+                    <th>线程数量</th>
+                    <th>可执行文件</th>
+                    <th>用户名</th>
+                    <th>创建时间</th>
+                    <th>内存占用</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for process in processes:
+                <tr>
+                    <td><input type="checkbox" name="taskCheckbox" value="{{ process.pid }}"></td>
+                    <td style="padding: 5px;">{{ process.pid }}</td>
+                    <td style="padding: 5px;">{{ process.name }}</td>
+                    <td><textarea name="cmdline" cols="40" rows="3" style="border: none; outline: none;"
+                            readonly>{{ ' '.join(process.cmdline) }}</textarea></td>
+                    <td><textarea name="cwd" cols="40" rows="3" style="border: none; outline: none;"
+                            readonly>{{ process.cwd }}</textarea></td>
+
+                    <td style="padding: 5px;">{{ process.status }}</td>
+                    <td style="padding: 5px;">{{ process.num_threads }}</td>
+                    <td><textarea name="exe" cols="40" rows="3" style="border: none; outline: none;"
+                            readonly>{{ process.exe }}</textarea></td>
+
+                    <td style="padding: 5px;">{{ process.username }}</td>
+                    <td style="padding: 5px;">{{ process.create_time }}</td>
+                    <td style="padding: 5px;">
+                        {{ process.memory_percent }}
+                    </td>
+                    <td style="padding: 5px;">
+                        <button onclick = "if (!confirm('你确定吗？')) return; this.disabled = true;
+                        (() => {
+                            fetch('terminate_process?pid=' + encodeURIComponent('{{ process.pid }}'))
+                            .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); }); })();
+                        void(0);" style="color: red;">终止</button>
+                    </td>
+
+                </tr>
+                % end
+            </tbody>
+        </table>
+        共 {{ len(processes) }} 条记录
+        </p>
+    </div>
+
+    <script>
+
+    </script>
+</body>
+
+</html>

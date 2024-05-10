@@ -1,0 +1,9 @@
+{
+    "cmd": "python -c \"import time, os; [print(i, time.strftime('%Y-%m-%d %H:%M:%S'), os.environ['TEST'], os.environ['TEST2']) or time.sleep(2) for i in range(999)]\"",
+    "cwd": "",
+    "env": {
+        "TEST": "123",
+        "TEST2": "456"
+    },
+    "is_enabled": 1
+}

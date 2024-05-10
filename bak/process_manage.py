@@ -1,25 +1,14 @@
-import os
-import platform
-import subprocess
-import sys
+import sys, os, platform, subprocess
+import fire, psutil
 
-def find_process_by_command(command):
+def find_process_by_command(command) -> list[int] | None:
     if platform.system() == 'Windows':
-        cmd = r'*' + command + '*'
-        result = subprocess.run(['powershell', '-Command', "Get-WmiObject Win32_Process | Where-Object {$_.CommandLine -like '" + cmd + "'} | Select-Object -ExpandProperty ProcessId"], capture_output=True, text=True)
-        if result.returncode == 0:
-            # print(result.stdout)
-            try:
-                return int(result.stdout.strip())
-            except ValueError:
-                return None
+        completed_process = subprocess.run(['powershell', '-Command', "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*" + command + "*' } | Select-Object -ExpandProperty ProcessId"], capture_output=True, text=True)
     elif platform.system() == 'Linux':
-        result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode == 0:
-            pid_list = result.stdout.strip().split('\n')
-            if pid_list:
-                return int(pid_list[0])
-    return None
+        completed_process = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if completed_process.returncode == 0 and completed_process.stdout:
+        pid_list = list(map(int, completed_process.stdout.strip().split('\n')))
+        return pid_list
 
 def terminate_process_by_pid(pid):
     if platform.system() == 'Windows':
@@ -33,6 +22,8 @@ def terminate_process_by_pid(pid):
         return f"Error: {e.stderr.strip()}"
 
 if __name__ == '__main__':
+    fire.Fire()
+    
     # script_dir = os.path.dirname(os.path.realpath(__file__))
     # app_script = os.path.join(script_dir, 'app.py')
     # cmd = '"' + sys.executable + '" "' + app_script + '"'
