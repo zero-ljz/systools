@@ -1,15 +1,9 @@
 # pip install -r requirements.txt
 
 fire
-
 bottle
-
 cheroot
-
+# gunicorn==20.1.0
 requests
-
-loguru
-
-simplejson==3.19.1
 
 psutil
