@@ -9,6 +9,8 @@ import signal
 
 import fire, psutil
 
+import threading
+
 import tracemalloc
 tracemalloc.start()
 
@@ -16,6 +18,13 @@ app = Bottle()
 
 config_dir = 'services/'
 services = {}
+
+
+def monitor_process(proc, cleanup_fn):
+    print(f"Monitoring process PID: {proc.pid}")
+    proc.wait() # 阻塞等待进程结束
+    print(f"Process PID: {proc.pid} has exited with return code: {proc.returncode}")
+    cleanup_fn()
 
 def load_services():
     configs = [
@@ -101,7 +110,7 @@ class Service:
         try:
             self.log_file = open(f'logs/{self.name}.log', 'ab')
             cmd_splits = split_with_quotes(self.cmd, sep=' ')
-            print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
+            print(f"111Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
                 args=cmd_splits, cwd=self.cwd or os.getcwd(),
                 stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
@@ -109,6 +118,9 @@ class Service:
                 shell=False, # shell=True，它会让系统用 shell 去解析命令，比如：Windows 下：cmd.exe /c "python my_script.py --arg value"  Linux/Mac 下：/bin/sh -c "python my_script.py --arg value"
                 text=True, encoding='utf-8', errors='ignore',
             )
+            
+            # 后台线程监控进程退出，清理资源
+            threading.Thread(target=monitor_process, args=(self.process, self.clean_up), daemon=True).start()
         except Exception as e:                
             return 'Error: ' + str(e)
         
@@ -133,8 +145,8 @@ class Service:
             # 等待进程结束（或者可以执行其他任务，不必等待）
             returncode = self.process.wait(timeout=5)
             
-            if self.log_file and not self.log_file.closed:
-                self.log_file.close()
+            # if self.log_file and not self.log_file.closed:
+            #     self.log_file.close()
         except subprocess.TimeoutExpired:
             # 强制终止进程
             self.process.kill()
@@ -157,6 +169,9 @@ class Service:
             return 'not started'
         
     def clean_up(self):
+        print(f"Cleaning up service {self.name}")
+        if self.log_file and not self.log_file.closed:
+            self.log_file.close()
         for stream in [self.process.stdin, self.process.stdout, self.process.stderr]:
             if stream and not stream.closed:
                 try:
@@ -303,7 +318,7 @@ def log_view():
                 logElem.textContent += "\\n[读取失败] " + e;
             }
         }
-        setInterval(fetchLog, 2000);
+        setInterval(fetchLog, 1000);
         fetchLog();
         </script>
         </body>
