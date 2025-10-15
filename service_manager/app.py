@@ -1,4 +1,5 @@
 import locale
+from pathlib import Path
 import re
 import sys, os, datetime, time, platform, subprocess, json
 import math
@@ -26,6 +27,17 @@ def monitor_process(proc, cleanup_fn):
     print(f"Process PID: {proc.pid} has exited with return code: {proc.returncode}")
     cleanup_fn()
 
+def start_config(file_path, name):
+    print(f"Loading configuration: {file_path}")
+    with open(file_path, "r", encoding="utf-8") as f:
+        service = Service(name=name, **json.load(f))
+    services[service.name] = service
+
+    if service.is_enabled and not service.process:
+        print(f"Starting service: {service.name}")
+        print('PID:', service.start())
+        print()
+
 def load_services():
     configs = [
         {"file_path": file_path, "stat": stat, "name": name, "filename": filename}
@@ -38,15 +50,7 @@ def load_services():
     ]
     print(f"Found {len(configs)} service configurations.\n\n")
     for config in configs:
-        print(f"Loading configuration: {config['file_path']}")
-        with open(config["file_path"], "r", encoding="utf-8") as f:
-            service = Service(name=config["name"], **json.load(f))
-        services[service.name] = service
-
-        if service.is_enabled and not service.process:
-            print(f"Starting service: {service.name}")
-            print('PID:', service.start())
-            print()
+        start_config(file_path=config["file_path"], name=config["name"])
 
 def format_bytes(bytes):
     sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
@@ -110,7 +114,7 @@ class Service:
         try:
             self.log_file = open(f'logs/{self.name}.log', 'ab')
             cmd_splits = split_with_quotes(self.cmd, sep=' ')
-            print(f"111Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
+            print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
                 args=cmd_splits, cwd=self.cwd or os.getcwd(),
                 stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
@@ -125,7 +129,7 @@ class Service:
             return 'Error: ' + str(e)
         
         # 读取一行输出，确认进程已启动
-        time.sleep(0.5)
+        # time.sleep(0.5)
         if self.process.poll() is not None:
             stderr = self.process.stderr.read() if self.process.stderr else ''
             self.clean_up()
@@ -182,6 +186,25 @@ class Service:
 @app.route('/')
 def index():
     return template('services.html', services=services)
+
+@app.route('/test_start', method=['GET', 'POST'])
+def test_start():
+    cmd = request.query.cmd or ''
+    cwd = request.query.cwd or Path(os.path.expanduser('~')).as_posix() or os.getcwd()
+    
+    # 创建临时配置文件
+    config = os.path.join('services/', 'test.json')
+    with open(config, 'w', encoding='utf-8') as f:
+        f.write('''\
+{
+    "cmd": "''' + cmd + '''",
+    "cwd": "''' + cwd + '''",
+    "env": {},
+    "is_enabled": 1
+}''')
+    start_config(config, 'test')
+    redirect('/log_view?name=test.json')
+    
 
 @app.route('/start')
 def start():
@@ -336,14 +359,16 @@ def clear_log():
         return '日志文件不存在'
 
     try:
-        os.remove(f'logs/{name}.log')
+        # os.remove(f'logs/{name}.log')
+        with open(f'logs/{name}.log', 'w') as f: # 直接覆盖写入空内容
+            pass  # 或 f.truncate(0)
     except OSError as e:
         return '你需要先停止服务:\n' + str(e)
     return 'OK'
 
 @app.route('/find_process')
 def find_process():
-    cmd = request.query.cmd
+    cmd = request.query.cmd_line
     if cmd.isdecimal() and int(cmd) > 0:
         pid_list = [int(cmd)]
     else:

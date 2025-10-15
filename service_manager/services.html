@@ -9,8 +9,15 @@
 
 <body>
     <form method="get" action="find_process" id="form1">
-        <input type="text" name="cmd" placeholder="命令行" value="">
-        <input type="submit" value="查找进程">
+        <input type="text" name="cmd_line" placeholder="Command Line or PID" value="">
+        <input type="submit" value="Find Process">
+    </form>
+    <hr style="margin:10px 0; border:0;">
+
+    <form method="get" action="test_start" id="form2">
+        <input type="text" name="cmd" placeholder="Command" value="">
+        <input type="text" name="cwd" placeholder="Current Working Directory" value="">
+        <input type="submit" value="Test Start">
     </form>
     <hr style="margin:10px 0; border:0;">
 

@@ -1,0 +1,6 @@
+{
+    "cmd": "ipconfig",
+    "cwd": "",
+    "env": {},
+    "is_enabled": 0
+}
