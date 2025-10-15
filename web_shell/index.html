@@ -127,19 +127,20 @@
             }
             const paramValue = textareas[i].value;
             if (paramValue.includes('/')) {
-                paramStr += '/"' + encodeURIComponent(paramValue) + '"';
+                paramStr += '/"' + paramValue + '"'; // encodeURIComponent
             } else {
-                paramStr += '/' + encodeURIComponent(paramValue);
+                paramStr += '/' + paramValue;
             }
         }
         let cwd = document.getElementById('cwd').value;
         let shell = document.getElementById('shell').checked ? 'on' : 'off';
         let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
+        console.log(paramStr)
         let href = '/"' + document.getElementById('0').value + '"' + paramStr + '?' 
         + (cwd ? '&cwd=' + cwd : '') 
         + (shell ? '&shell=' + shell : '')
         + (capture_output ? '&capture_output=' + capture_output : '');
-        window.location.href = href;
+        window.location.href = href; // 如果paramValue里面包含了"双引号, 浏览器会自动进行编码, 无解
     }
 
     function setAction2() {

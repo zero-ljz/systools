@@ -13,6 +13,7 @@ import re, sys, os, base64, datetime, time
 from bottle import Bottle, request, template, response, static_file, abort, HTTPResponse
 import urllib.parse
 import logging
+from urllib.parse import unquote, unquote_plus
 
 app_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 logging.basicConfig(filename=app_name + '.log', level=logging.INFO)
@@ -66,7 +67,7 @@ def handle_request(path=None):
     if command := request.query.cmd or request.forms.cmd: # 参数中包含了空格时要用双引号"将参数包括起来
         params = split_with_quotes(command, sep=' ')
     elif path is not None: # 参数中包含了斜杠/时要用双引号"将参数包括起来
-        params = split_with_quotes(path)
+        params = [unquote(param) for param in split_with_quotes(path)]
         command = " ".join(f'"{value}"' for value in params)
     else:
         return static_file('index.html', root='.', mimetype='text/html')
@@ -121,4 +122,4 @@ if __name__ == "__main__":
     parser.add_argument('--port', '-p', type=int, default=8000, help='Port to listen on (default: 8000)')
     args = parser.parse_args()
 
-    app.run(host=args.host, port=args.port, debug=True, reloader=True, server='cheroot')
+    app.run(host=args.host, port=args.port, debug=True, reloader=False, server='cheroot')
