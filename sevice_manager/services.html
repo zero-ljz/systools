@@ -76,7 +76,7 @@
                         })();" style="color: red;">删除</button>
                     </td>
                     <td style="padding: 5px;">
-                        <a href="{{ 'log?name=' + service.name + '.json' }}">查看</a>
+                        <a href="{{ 'log_view?name=' + service.name + '.json' }}">查看</a>
                         <button onclick="if (!confirm('你确定吗？')) return; this.disabled = true;
                         (() => { 
                             fetch('clear_log?name=' + encodeURIComponent('{{ service.name }}' + '.json'))

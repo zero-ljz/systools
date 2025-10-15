@@ -1,10 +1,43 @@
+import locale
+import re
 import sys, os, datetime, time, platform, subprocess, json
 import math
 import atexit
 from types import SimpleNamespace
-from bottle import Bottle, request, response, template, static_file, redirect, abort
+from bottle import Bottle, request, response, template, static_file, redirect, abort, Response
+import signal
 
 import fire, psutil
+
+import tracemalloc
+tracemalloc.start()
+
+app = Bottle()
+
+config_dir = 'services/'
+services = {}
+
+def load_services():
+    configs = [
+        {"file_path": file_path, "stat": stat, "name": name, "filename": filename}
+        for filename in os.listdir(config_dir) 
+        if (
+            os.path.isfile(file_path := os.path.join(config_dir, filename)) 
+            and (stat := os.stat(file_path)) 
+            and (name := os.path.splitext(os.path.basename(filename))[0])
+        )
+    ]
+    print(f"Found {len(configs)} service configurations.\n\n")
+    for config in configs:
+        print(f"Loading configuration: {config['file_path']}")
+        with open(config["file_path"], "r", encoding="utf-8") as f:
+            service = Service(name=config["name"], **json.load(f))
+        services[service.name] = service
+
+        if service.is_enabled and not service.process:
+            print(f"Starting service: {service.name}")
+            print('PID:', service.start())
+            print()
 
 def format_bytes(bytes):
     sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
@@ -42,6 +75,10 @@ def terminate_process_by_pid(pid):
     except subprocess.CalledProcessError as e:
         return f"Error: {e.stderr.strip()}"
 
+def split_with_quotes(string, sep='/'):
+    parts = re.findall(r'(?:".*?"|[^' + sep + r'"]+)', string)
+    return [part.strip('"') for part in parts]
+
 class Service:
     def __init__(self, name, cmd, cwd, env, is_enabled):
         self.name = name
@@ -59,20 +96,30 @@ class Service:
         if self.process and self.process.poll() is None:
             return 'already running'
 
-        if not os.path.exists(f'logs/'):
-            os.makedirs(f'logs/')
-        self.log_file = open(f'logs/{self.name}.log', 'ab')
+        if not os.path.exists('logs/'):
+            os.makedirs('logs/')
         try:
+            self.log_file = open(f'logs/{self.name}.log', 'ab')
+            cmd_splits = split_with_quotes(self.cmd, sep=' ')
+            print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
-                args=self.cmd, cwd=self.cwd or os.getcwd(),
-                stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE,
-                env=self.env, shell=True,
+                args=cmd_splits, cwd=self.cwd or os.getcwd(),
+                stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
+                env=self.env, 
+                shell=False, # shell=True，它会让系统用 shell 去解析命令，比如：Windows 下：cmd.exe /c "python my_script.py --arg value"  Linux/Mac 下：/bin/sh -c "python my_script.py --arg value"
                 text=True, encoding='utf-8', errors='ignore',
             )
-        except Exception as e:
-            self.log_file.close()
+        except Exception as e:                
             return 'Error: ' + str(e)
-        return self.process.pid
+        
+        # 读取一行输出，确认进程已启动
+        time.sleep(0.5)
+        if self.process.poll() is not None:
+            stderr = self.process.stderr.read() if self.process.stderr else ''
+            self.clean_up()
+            return f"Failed to start service {self.name}. Return code: {self.process.returncode}. Error: {stderr}"
+        else:
+            return self.process.pid
 
     def stop(self):
         if not (self.process and self.process.poll() is None):
@@ -84,13 +131,17 @@ class Service:
             # os.kill(self.process.pid, signal.SIGTERM) # 15
             
             # 等待进程结束（或者可以执行其他任务，不必等待）
-            returncode = self.process.wait(timeout=3)
+            returncode = self.process.wait(timeout=5)
+            
+            if self.log_file and not self.log_file.closed:
+                self.log_file.close()
         except subprocess.TimeoutExpired:
             # 强制终止进程
             self.process.kill()
             # os.kill(self.process.pid, signal.SIGKILL) # 9
-
-        self.log_file.close()
+        finally:
+            # 清理资源
+            self.clean_up()
 
     def restart(self) -> int | str:
         self.stop()
@@ -104,31 +155,14 @@ class Service:
                 return f'stopped, return code: {self.process.returncode}'
         else:
             return 'not started'
-
-config_dir = 'services/'
-services = {}
-
-def load_services():
-    configs = [
-        {"file_path": file_path, "stat": stat, "name": name, "filename": filename}
-        for filename in os.listdir(config_dir) 
-        if (
-            os.path.isfile(file_path := os.path.join(config_dir, filename)) 
-            and (stat := os.stat(file_path)) 
-            and (name := os.path.splitext(os.path.basename(filename))[0])
-        )
-    ]
-    for config in configs:
-        with open(config["file_path"], "r", encoding="utf-8") as f:
-            service = Service(name=config["name"], **json.load(f))
-        services[service.name] = service
-
-        if service.is_enabled and not service.process:
-            print(f"Starting service: {service.name}")
-            print(service.start())
-
-app = Bottle()
-load_services()
+        
+    def clean_up(self):
+        for stream in [self.process.stdin, self.process.stdout, self.process.stderr]:
+            if stream and not stream.closed:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
 
 @app.route('/')
 def index():
@@ -227,15 +261,54 @@ def log():
     if not os.path.isfile(config): # 必须是配置文件目录下的文件
         abort(404)
     name = os.path.splitext(os.path.basename(config))[0]
-    print(name)
+    offset = int(request.query.offset or 0)
+    
     if not os.path.isfile(f'logs/{name}.log'):
         abort(404)
 
-    with open(f'logs/{name}.log', 'r', encoding='utf-8', errors='ignore') as f:
-        text = f.read()
+    with open(f'logs/{name}.log', 'rb') as f:
+        f.seek(offset)
+        data = f.read()
         
     response.content_type = 'text/plain; charset=UTF-8'
-    return text
+    response.headers['X-Next-Offset'] = str(offset + len(data))  # 客户端下次从这里开始读
+    return data.decode(encoding=locale.getpreferredencoding(False), errors='ignore')
+
+@app.route('/log_view')
+def log_view():
+    return '''
+        <html>
+        <head><title></title></head>
+        <body style="font-family:monospace;background:gray;color:#eee;">
+        <pre id="log" style=""></pre>
+        <script>
+        const name = new URLSearchParams(location.search).get("name");
+        if (name) {
+        document.title = "日志查看 - " + name;
+        }
+        const logElem = document.getElementById("log");
+        let offset = 0;
+
+        async function fetchLog() {
+            try {
+                const res = await fetch(`/log?name=${name}&offset=${offset}`);
+                const text = await res.text();
+                if (text) {
+                    logElem.textContent += text;
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+                const nextOffset = res.headers.get("X-Next-Offset");
+                if (nextOffset) offset = parseInt(nextOffset);
+            } catch (e) {
+                logElem.textContent += "\\n[读取失败] " + e;
+            }
+        }
+        setInterval(fetchLog, 2000);
+        fetchLog();
+        </script>
+        </body>
+        </html>
+    '''
 
 @app.route('/clear_log')
 def clear_log():
@@ -294,13 +367,16 @@ def terminate_process():
 def on_exit():
     # 停止所有服务
     for i, (name, service) in enumerate(services.items()):
+        print(f"Stopping service {i+1}/{len(services)}: {service.name}")
         service.stop()
 
 if __name__ == "__main__":
+    load_services()
+    
     import argparse
     parser = argparse.ArgumentParser(description='Run the development server.')
     parser.add_argument('--host', '-H', default='0.0.0.0', help='Host to listen on (default: 0.0.0.0)')
     parser.add_argument('--port', '-p', type=int, default=8000, help='Port to listen on (default: 8000)')
     args = parser.parse_args()
 
-    app.run(host=args.host, port=args.port, debug=True, reloader=True, server='cheroot')
+    app.run(host=args.host, port=args.port, debug=True, server='cheroot')
