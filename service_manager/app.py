@@ -22,21 +22,22 @@ services = {}
 
 
 def monitor_process(proc, cleanup_fn):
-    print(f"Monitoring process PID: {proc.pid}")
     proc.wait() # 阻塞等待进程结束
     print(f"Process PID: {proc.pid} has exited with return code: {proc.returncode}")
     cleanup_fn()
 
 def start_config(file_path, name):
-    print(f"Loading configuration: {file_path}")
     with open(file_path, "r", encoding="utf-8") as f:
         service = Service(name=name, **json.load(f))
     services[service.name] = service
 
     if service.is_enabled and not service.process:
-        print(f"Starting service: {service.name}")
-        print('PID:', service.start())
-        print()
+        try:
+            pid = service.start()
+            msg = f"{service.name} Started with pid: {str(pid)}"
+        except RuntimeError as e:
+            msg = f"{service.name} Service failed: {str(e)}"
+        print(msg)
 
 def load_services():
     configs = [
@@ -48,7 +49,7 @@ def load_services():
             and (name := os.path.splitext(os.path.basename(filename))[0])
         )
     ]
-    print(f"Found {len(configs)} service configurations.\n\n")
+    # print(f"Found {len(configs)} service configurations.\n\n")
     for config in configs:
         start_config(file_path=config["file_path"], name=config["name"])
 
@@ -105,16 +106,16 @@ class Service:
         self.is_enabled = is_enabled
         self.process = None
 
-    def start(self) -> int | str:
+    def start(self) -> int:
         if self.process and self.process.poll() is None:
-            return 'already running'
+            raise RuntimeError(f"Service '{self.name}' is already running")
 
         if not os.path.exists('logs/'):
             os.makedirs('logs/')
         try:
             self.log_file = open(f'logs/{self.name}.log', 'ab')
             cmd_splits = split_with_quotes(self.cmd, sep=' ')
-            print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
+            # print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
                 args=cmd_splits, cwd=self.cwd or os.getcwd(),
                 stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
@@ -126,14 +127,14 @@ class Service:
             # 后台线程监控进程退出，清理资源
             threading.Thread(target=monitor_process, args=(self.process, self.clean_up), daemon=True).start()
         except Exception as e:                
-            return 'Error: ' + str(e)
+            raise RuntimeError(f"Error starting service '{self.name}': {str(e)}")
         
         # 读取一行输出，确认进程已启动
         # time.sleep(0.5)
         if self.process.poll() is not None:
             stderr = self.process.stderr.read() if self.process.stderr else ''
             self.clean_up()
-            return f"Failed to start service {self.name}. Return code: {self.process.returncode}. Error: {stderr}"
+            raise RuntimeError(f"Failed to start service '{self.name}'. Return code: {self.process.returncode}. Error: {stderr}")
         else:
             return self.process.pid
 
@@ -214,7 +215,14 @@ def start():
         service = services.get(name)
         if service is None:
             abort(404)
-        out += str(service.start()) + '\n'
+        try:
+            pid = service.start()
+            msg = f"{service.name} Started with pid: {str(pid)}"
+        except RuntimeError as e:
+            msg = f"{service.name} Service failed: {str(e)}"
+        out += msg + '\n'
+        out = out[:-1] if out.endswith('\n') else out
+    print(out)
     return out
 
 @app.route('/stop')
@@ -234,7 +242,13 @@ def restart():
     service = services.get(name)
     if service is None:
         abort(404)
-    return service.restart()
+    try:
+        pid = service.restart()
+        msg = f"{service.name} Started with pid: {str(pid)}"
+    except RuntimeError as e:
+        msg = f"{service.name} Service failed: {str(e)}"
+    print(msg)
+    return msg
 
 @app.route('/update', method=['GET', 'POST'])
 def update():
@@ -354,7 +368,6 @@ def clear_log():
     if not os.path.isfile(config): # 必须是配置文件目录下的文件
         abort(404)
     name = os.path.splitext(os.path.basename(config))[0]
-    print(name)
     if not os.path.isfile(f'logs/{name}.log'):
         return '日志文件不存在'
 
