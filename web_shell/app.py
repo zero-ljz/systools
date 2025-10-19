@@ -13,6 +13,7 @@ import re, sys, os, base64, datetime, time
 from bottle import Bottle, request, template, response, static_file, abort, HTTPResponse
 import urllib.parse
 import logging
+import io
 from urllib.parse import unquote, unquote_plus
 
 app_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
@@ -23,7 +24,7 @@ user_home_directory = os.path.expanduser("~")
 
 app = Bottle()
 auth_username = os.environ.get('AUTH_USERNAME', '')
-auth_password = os.environ.get('AUTH_PASSWORD', '123qwe123@') # Authorization: Basic OjEyM3F3ZTEyM0A=
+auth_password = os.environ.get('AUTH_PASSWORD', '123123') # Authorization: Basic OjEyMzEyMw==
 
 # 假设这是保存在服务器端的用户名和密码信息
 users = {
@@ -53,6 +54,18 @@ def requires_auth(f):
     return wrapper
 
 
+def echo():
+    body_bytes = request.environ['wsgi.input'].read()
+    request.environ['wsgi.input'] = io.BytesIO(body_bytes)  # 重置流
+    body = body_bytes.decode("utf-8")
+
+    request_line = f'{request.method} {request.path}{(request.query_string or "") and "?" + request.query_string} {request.environ.get("SERVER_PROTOCOL")}'
+    headers = '\n'.join([f'{key}: {value}' for key, value in sorted(request.headers.items())])
+
+    print(f'\n\n\n{request_line}\n{headers}\n\n{body}')
+
+app.add_hook('before_request', echo)
+
 @app.route('/', method='GET')
 # @app.route('/<path:re:.*>')
 @app.route('/<path:path>')
@@ -67,6 +80,7 @@ def handle_request(path=None):
     if command := request.query.cmd or request.forms.cmd: # 参数中包含了空格时要用双引号"将参数包括起来
         params = split_with_quotes(command, sep=' ')
     elif path is not None: # 参数中包含了斜杠/时要用双引号"将参数包括起来
+        # 注: 浏览器会自动对url的path部分编码，但是地址栏显示的还是未编码的path
         params = [unquote(param) for param in split_with_quotes(path)]
         command = " ".join(f'"{value}"' for value in params)
     else:

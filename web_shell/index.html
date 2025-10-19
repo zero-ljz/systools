@@ -12,6 +12,11 @@
 <p>
 
 <form id="form1" onsubmit="return saveFormData();">
+        <input type="checkbox" id="shell"><label for="shell">shell</label> &nbsp;
+        <input type="checkbox" id="capture_output" checked><label for="capture_output">capture_output</label> &nbsp;
+        <input type="submit" value="Exec" onclick="setAction()">
+        <input type="submit" value="Exec2" onclick="setAction2()">
+    <hr style="margin:5px 0; border:0;">
     <input type="text" id="cwd" placeholder="cwd">
     <div style="display: block; margin: 1rem 0;">
         <input type="text" list="optionList" id="0" placeholder="0">
@@ -24,12 +29,6 @@
 
         <button type="button" onclick="addParam()">+</button>
         <button type="button" onclick="removeParam()">-</button>
-
-        <hr style="margin:5px 0; border:0;">
-        <input type="checkbox" id="shell"><label for="shell">shell</label> &nbsp;
-        <input type="checkbox" id="capture_output" checked><label for="capture_output">capture_output</label> &nbsp;
-        <input type="submit" value="Execute" onclick="setAction()">
-        <input type="submit" value="Execute2" onclick="setAction2()">
     </div>
 
     <textarea style="display:block;" id="1" placeholder="1"></textarea>
@@ -129,7 +128,7 @@
             if (paramValue.includes('/')) {
                 paramStr += '/"' + paramValue + '"'; // encodeURIComponent
             } else {
-                paramStr += '/' + paramValue;
+                paramStr += '/' + paramValue; // encodeURIComponent
             }
         }
         let cwd = document.getElementById('cwd').value;
