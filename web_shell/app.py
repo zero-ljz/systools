@@ -16,6 +16,9 @@ import logging
 import io
 from urllib.parse import unquote, unquote_plus
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 app_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 logging.basicConfig(filename=app_name + '.log', level=logging.INFO)
 

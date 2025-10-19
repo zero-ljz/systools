@@ -2,5 +2,5 @@
     "cmd": "ping 127.0.0.1 -n 10",
     "cwd": "",
     "env": {},
-    "is_enabled": 1
+    "is_enabled": 0
 }

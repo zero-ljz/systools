@@ -3,6 +3,7 @@ import platform
 import json
 import socket
 import time
+import os
 
 import psutil
 import cpuinfo
@@ -13,6 +14,9 @@ from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket.exceptions import WebSocketError
 
 gevent.monkey.patch_all()
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
 
 app = Bottle()
 

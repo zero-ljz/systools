@@ -5,5 +5,5 @@
         "TEST": "123",
         "TEST2": "456"
     },
-    "is_enabled": 1
+    "is_enabled": 0
 }

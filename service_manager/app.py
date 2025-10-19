@@ -15,6 +15,9 @@ import threading
 import tracemalloc
 tracemalloc.start()
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 app = Bottle()
 
 config_dir = 'services/'
@@ -118,7 +121,7 @@ class Service:
             # print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
                 args=cmd_splits, cwd=self.cwd or os.getcwd(),
-                stdin=subprocess.PIPE, stdout=self.log_file, stderr=subprocess.PIPE, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
+                stdin=subprocess.PIPE, stdout=self.log_file, stderr=self.log_file, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
                 env=self.env, 
                 shell=False, # shell=True，它会让系统用 shell 去解析命令，比如：Windows 下：cmd.exe /c "python my_script.py --arg value"  Linux/Mac 下：/bin/sh -c "python my_script.py --arg value"
                 text=True, encoding='utf-8', errors='ignore',
@@ -127,16 +130,8 @@ class Service:
             # 后台线程监控进程退出，清理资源
             threading.Thread(target=monitor_process, args=(self.process, self.clean_up), daemon=True).start()
         except Exception as e:                
-            raise RuntimeError(f"Error starting service '{self.name}': {str(e)}")
-        
-        # 读取一行输出，确认进程已启动
-        # time.sleep(0.5)
-        if self.process.poll() is not None:
-            stderr = self.process.stderr.read() if self.process.stderr else ''
-            self.clean_up()
-            raise RuntimeError(f"Failed to start service '{self.name}'. Return code: {self.process.returncode}. Error: {stderr}")
-        else:
-            return self.process.pid
+            raise RuntimeError(f"{str(e)}")
+        return self.process.pid
 
     def stop(self):
         if not (self.process and self.process.poll() is None):
@@ -150,9 +145,8 @@ class Service:
             # 等待进程结束（或者可以执行其他任务，不必等待）
             returncode = self.process.wait(timeout=5)
             
-            # if self.log_file and not self.log_file.closed:
-            #     self.log_file.close()
         except subprocess.TimeoutExpired:
+            print(f"Process PID: {self.process.pid} has not exited within 5 seconds, terminating it forcefully...")
             # 强制终止进程
             self.process.kill()
             # os.kill(self.process.pid, signal.SIGKILL) # 9

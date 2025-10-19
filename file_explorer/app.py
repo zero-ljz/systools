@@ -6,14 +6,14 @@ import subprocess
 import mimetypes
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
-app = Bottle()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
 
+app = Bottle()
 
 @app.route('/')
 def index():
     return static_file('index.html', root='.')
-
-
 
 # 获取文件列表
 @app.get("/files")
