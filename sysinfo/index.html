@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="System resource monitor, source code: https://github.com/zero-ljz/sysinfo">
+    <link rel="icon" href="data:," />
+    <title>System Resource Monitor</title>
+    <style>
+        /* 样式 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .server-info {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            white-space: pre-wrap; /* 允许自动换行同时保留空格和换行符 */
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 多个服务器信息区域 -->
+    <div id="server-info-container">
+
+    </div>
+
+    <script>
+        // JavaScript 代码
+        function connectWebSocket(url, elementId) {
+            const socket = new WebSocket(url);
+
+            // 当 WebSocket 连接成功时
+            socket.onopen = () => {
+                console.log(`WebSocket connection opened: ${url}`);
+            };
+
+            // 当收到 WebSocket 消息时
+            socket.onmessage = (event) => {
+                const systemInfo = JSON.parse(event.data);
+                const formattedSystemInfo = `
+    Host Name: ${systemInfo.node} (${new URL(url).hostname})
+    OS: ${systemInfo.os} ${systemInfo.bits} ${systemInfo.version}
+    Release: ${systemInfo.release}
+    CPU Model: ${systemInfo.processor} (${systemInfo.machine})
+
+    CPU <meter min="0" max="100" value="${systemInfo.cpu_usage}"></meter> ${systemInfo.cpu_usage.toFixed(2)}%
+      ${systemInfo.cpu_cores} cores ${systemInfo.cpu_threads} threads (${systemInfo.cpu_freq.toFixed(2)} MHz)
+
+    RAM <meter min="0" max="100" value="${systemInfo.memory.percent}"></meter> ${systemInfo.memory.percent.toFixed(2)}%
+      Total: ${formatBytes(systemInfo.memory.total)}
+      Free: ${formatBytes(systemInfo.memory.available)}
+      Used: ${formatBytes(systemInfo.memory.used)}
+      
+    Swap <meter min="0" max="100" value="${systemInfo.swap.percent}"></meter> ${systemInfo.swap.percent.toFixed(2)}%
+      Total: ${formatBytes(systemInfo.swap.total)}
+      Used: ${formatBytes(systemInfo.swap.used)}
+      
+    Disk <meter min="0" max="100" value="${systemInfo.disk.percent}"></meter> ${systemInfo.disk.percent.toFixed(2)}%
+      Total: ${formatBytes(systemInfo.disk.total)}
+      Free: ${formatBytes(systemInfo.disk.free)}
+      Used: ${formatBytes(systemInfo.disk.used)}
+      
+    Disk I/O:
+      Read: ${formatBytes(systemInfo.disk_io.read_bytes)} (${getNetworkSpeed(elementId + '-readBytes', systemInfo.disk_io.read_bytes)} /s)
+      Write: ${formatBytes(systemInfo.disk_io.write_bytes)} (${getNetworkSpeed(elementId + '-writeBytes', systemInfo.disk_io.write_bytes)} /s)
+
+    NET I/O:
+      Recv: ${formatBytes(systemInfo.network.bytes_recv)} (${getNetworkSpeed(elementId + '-bytesRecv', systemInfo.network.bytes_recv)} /s)
+      Sent: ${formatBytes(systemInfo.network.bytes_sent)} (${getNetworkSpeed(elementId + '-bytesSent', systemInfo.network.bytes_sent)} /s)
+
+    Inside IP: ${systemInfo.ip_address}
+    IPv4 TCP Connections: ${systemInfo.tcp4_connection_count}
+    IPv6 TCP Connections: ${systemInfo.tcp6_connection_count}
+    Load Average: ${systemInfo.load_avg.map(avg => avg.toFixed(2)).join(', ')}
+    Processes: ${systemInfo.process_count}
+    Boot Time: ${formatReadableTime(systemInfo.timestamp - systemInfo.boot_time)}
+    Time: ${systemInfo.current_time}
+    Time Zone: ${systemInfo.time_zone}
+                `;
+
+                // 更新实时磁盘读写速度数据
+                window[elementId + '-readBytes'] = systemInfo.disk_io.read_bytes;
+                window[elementId + '-writeBytes'] = systemInfo.disk_io.write_bytes;
+
+                // 更新实时网速数据
+                window[elementId + '-bytesRecv'] = systemInfo.network.bytes_recv;
+                window[elementId + '-bytesSent'] = systemInfo.network.bytes_sent;
+
+                document.getElementById(elementId).innerHTML = formattedSystemInfo;
+            };
+
+            // 当 WebSocket 连接关闭时
+            socket.onclose = () => {
+                console.log(`WebSocket connection closed: ${url}`);
+
+                // 设置延时，过一段时间后重新连接 WebSocket
+                setTimeout(() => {
+                    console.log(`Retrying to connect: ${url}`);
+                    connectWebSocket(url, elementId);
+                }, 3000); // 重连间隔
+            };
+        }
+
+        const query = new URLSearchParams(window.location.search);
+        const urlsString = query.get('urls');
+        const urls = urlsString ? urlsString.split(',') : [];
+
+        if(urls.length==0){
+            createServerInfoDiv('ws://' + location.host + '/ws/', 'server-info-1');
+        }
+        else
+        {
+            // 循环遍历每个 URL，并调用 createServerInfoDiv 函数
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i];
+                const elementId = `server-info-${i + 1}`;
+                createServerInfoDiv(url, elementId);
+            }
+        }
+
+        // 动态创建 <div> 元素和调用 connectWebSocket 函数
+        function createServerInfoDiv(url, elementId) {
+            const serverInfoContainer = document.getElementById('server-info-container');
+
+            // 创建 <div> 元素
+            const serverInfoDiv = document.createElement('div');
+            serverInfoDiv.classList.add('server-info');
+            serverInfoDiv.id = elementId;
+            serverInfoDiv.textContent = `Waiting for WebSocket connection on ${url}...`;
+
+            // 将 <div> 元素添加到容器中
+            serverInfoContainer.appendChild(serverInfoDiv);
+
+            // 连接 WebSocket 服务器
+            connectWebSocket(url, elementId);
+        }
+
+        // 辅助函数：格式化字节数为可读的文本
+        function formatBytes(bytes) {
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            if (bytes === 0) return '0 Byte';
+            const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+            return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        // 辅助函数：格式化时间戳为可读的文本
+        function formatReadableTime(timestamp) {
+            const totalSeconds = Math.floor(timestamp);
+            const days = Math.floor(totalSeconds / (3600 * 24));
+            const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${days} Days ${hours} Hours ${minutes} Minutes ${seconds} Seconds`;
+        }
+
+        // 辅助函数：计算实时网速
+        function getNetworkSpeed(lastBytesKey, currentBytes) {
+            const lastBytes = window[lastBytesKey] || 0;
+            const bytesDiff = currentBytes - lastBytes;
+            return formatBytes(bytesDiff);
+        }
+
+    </script>
+</body>
+
+</html>
