@@ -1,4 +1,5 @@
 import os
+import stat
 import shutil
 import urllib.request
 import zipfile
@@ -9,20 +10,35 @@ from bottle import Bottle, request, response, template, static_file, redirect, a
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
+def is_hidden(name, path):
+    return name.startswith('.') or has_hidden_attribute(path)
+
+def has_hidden_attribute(filepath): # Windows-specific hidden file check
+    try:
+        attrs = os.stat(filepath).st_file_attributes
+        # 检查文件是否包含隐藏属性
+        return attrs & stat.FILE_ATTRIBUTE_HIDDEN != 0
+    except FileNotFoundError:
+        return False
+
 app = Bottle()
 
 @app.route('/')
 def index():
     return static_file('index.html', root='.')
 
+
 # 获取文件列表
 @app.get("/files")
 def get_file_list():
     directory = request.query.directory or "/"
     directory_path = os.path.abspath(directory)
+    show_hidden = request.query.show_hidden in ["1", "true", "True", "on", "yes"] or False
     file_list = []
     
     for name in os.listdir(directory_path):
+        if not show_hidden and is_hidden(name, os.path.join(directory_path, name)):
+                continue
         file_path = os.path.join(directory_path, name)
         file_stat = os.stat(file_path)
         
