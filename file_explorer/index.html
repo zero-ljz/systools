@@ -58,6 +58,8 @@
     </div>
 
     <br/>
+    <label>{{ files.length }} 个项目, 已选择 {{ this.getSelectedFiles().length }} 个项目</label>
+    <br/>
     <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
     <nav id="breadcrumb"></nav>
     <!-- <router-view></router-view> -->
@@ -66,42 +68,18 @@
       <input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">
       Show Hidden Files
     </label>
-
-    <!-- <div>
-    <input type="checkbox" v-model="selectAll" @change="toggleSelectAll"> 全选
-    </div> -->
-    <!-- <ul>
-    <li>
-    <button @click="goToParentDirectory">../</button>
-      <li v-for="file in files" :key="file.name">
-        <input type="checkbox" v-model="file.selected">
-        <a href="#" v-if="!file.is_directory" @click="handleFileClick(file)" :value="file.path">{{ file.name }}</a>
-
-        <router-link v-if="file.is_directory" :to="`/directory/${file.path}`">{{ file.name }}</router-link>
-
-        <span v-if="file.is_directory">[DIR]</span>
-        <span v-else>{{ formattedSize(file.size) }}</span>
-        <span>{{ formatDateTime(file.modified_at) }}</span>
-        <span>+{{ formatDateTime(file.created_at) }}</span>
-
-        <button @click="deleteFile(file.path)">Delete</button>
-        <button @click="copyFile(file.path)">Copy</button>
-        <button @click="moveFile(file.path)">Move</button>
-        <button @click="renameFile(file.path)">Rename</button>
-        <button v-if="!file.is_directory" @click="downloadFile(file.path)">Download</button>
-        <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
-      </li>
-    </ul> -->
+  
 
     
     <table border="1" cellSpacing="0" style="width: 100%;">
       <thead>
-        <tr>
+        <tr style="background-color: lightgray; text-align: left;">
           <th><input type="checkbox" v-model="selectAll" @change="toggleSelectAll"></th>
           <th>Name</th>
           <th>Type</th>
           <th>Size</th>
           <th>Modified At</th>
+          <th>Created At</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -118,14 +96,15 @@
             <span v-if="file.is_directory">Directory</span>
             <span v-else>File</span>
           </td>
-          <td>{{ formattedSize(file.size) }}</td>
+          <td><span v-if="!file.is_directory">{{ formattedSize(file.size) }}</span></td>
           <td>{{ formatDateTime(file.modified_at) }}</td>
+          <td>{{ formatDateTime(file.created_at) }}</td>
           <td>
+            <button @click="copyPath(file.path)">Copy Path</button>
+            <button @click="renameFile(file.path)">Rename</button>
             <button @click="deleteFile(file.path)">del</button>
             <button @click="copyFile(file.path)">cp</button>
             <button @click="moveFile(file.path)">mv</button>
-            <button @click="copyPath(file.path)">Copy Path</button>
-            <button @click="renameFile(file.path)">Rename</button>
             <button v-if="!file.is_directory" @click="downloadFile(file.path)">down</button>
             <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
           </td>
@@ -397,12 +376,13 @@ function createPathBreadcrumb(path) {
 
 
         deleteSelected() {
+            const selectedFiles = this.getSelectedFiles();
             // 询问用户确认删除
-            if (!confirm('Are you sure you want to delete the selected files/directories?')) {
+            if (!confirm('Are you sure you want to delete the '+selectedFiles.length+' selected files/directories?')) {
                 return;
             }
             // 批量删除选中的文件/目录
-            axios.post("/files/delete", { files: this.getSelectedFiles() })
+            axios.post("/files/delete", { files: selectedFiles })
                 .then(response => {
                     console.log(response.data.message);
                     // 刷新文件列表
