@@ -73,6 +73,26 @@ def get_file_list():
     return {"files": file_list}
 
 
+# 创建文本文件
+@app.post("/files")
+def create_text_file():
+    filename = request.json.get("filename")  # 文件名
+    content = request.json.get("content", "")  # 初始内容，默认为空
+    file_path = os.path.abspath(filename)
+
+    if os.path.exists(file_path):
+        response.status = 400
+        return {"error": "File already exists."}
+
+    # 创建父级目录（如果不存在）
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # 写入文件
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return {"message": "File created successfully."}
+
 # 创建目录
 @app.post("/directories")
 def create_directory():
@@ -253,10 +273,11 @@ def upload_remote_file():
 # 下载文件
 @app.get("/files/download/<filename:path>")
 def download_file(filename):
-    file_path = os.path.abspath(filename)
-
+    file_path = os.path.abspath(unquote(filename))
+    filename = os.path.basename(file_path)
+    directory = os.path.dirname(file_path)
     if os.path.exists(file_path):
-        return static_file(filename, root="/", download=filename)
+        return static_file(filename, root=directory, download=filename)
     else:
         response.status = 404
         return {"error": "File not found."}
