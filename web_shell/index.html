@@ -163,7 +163,7 @@
         let cwd = document.getElementById('cwd').value;
         let shell = document.getElementById('shell').checked ? 'on' : 'off';
         let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
-        window.location.href = `?cmd=` + encodeURIComponent('"' + document.getElementById('0').value + '"' + paramStr) 
+        window.location.href = `?cmd=` + encodeURIComponent('' + document.getElementById('0').value + '' + paramStr) // 第一个参数如果有空格需要用户手动加上双引号
         + ( cwd ? '&cwd=' + encodeURIComponent(cwd) : '' ) 
         + (shell ? '&shell=' + shell : '')
         + (capture_output ? '&capture_output=' + capture_output : '');
