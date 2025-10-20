@@ -1,11 +1,13 @@
 import os
 import stat
+import io
 import platform
 import shutil
 import urllib.request
 import zipfile
 import subprocess
 import mimetypes
+from urllib.parse import unquote, unquote_plus
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +27,18 @@ def has_hidden_attribute(filepath): # Windows-specific hidden file check
         return False
 
 app = Bottle()
+
+def echo():
+    body_bytes = request.environ['wsgi.input'].read()
+    request.environ['wsgi.input'] = io.BytesIO(body_bytes)  # 重置流
+    body = body_bytes.decode("utf-8")
+
+    request_line = f'{request.method} {request.path}{(request.query_string or "") and "?" + request.query_string} {request.environ.get("SERVER_PROTOCOL")}'
+    headers = '\n'.join([f'{key}: {value}' for key, value in sorted(request.headers.items())])
+
+    print(f'\n\n\n{request_line}\n{headers}\n\n{body}')
+
+app.add_hook('before_request', echo)
 
 @app.route('/')
 def index():
@@ -76,8 +90,7 @@ def create_directory():
 # 删除文件或目录
 @app.delete("/files/<filename:path>")
 def delete_file(filename):
-    file_path = os.path.abspath(filename)
-
+    file_path = os.path.abspath(unquote(filename))
     if os.path.isfile(file_path):
         os.remove(file_path)
         return {"message": "File deleted successfully."}
@@ -172,7 +185,7 @@ def move_files():
 
 # 打包文件或目录
 @app.post("/files/pack")
-def pack_files():
+def pack_files(): # 打包的压缩包在解压后的文件中的中文文件名乱码
     files_to_pack = request.json.get("files")  # 获取要打包的文件列表
     zip_filename = request.json.get("zip_filename")  # 获取目标 ZIP 文件名
 

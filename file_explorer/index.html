@@ -33,8 +33,8 @@
     </div>
     <br/>
     <div>
-      <input type="text" placeholder="Archived.zip" v-model="zipFilename">
-      <button @click="packFiles">Pack Files</button>
+      <input type="text" v-model="zipFilename">
+      <button @click="packFiles">Pack Selected Files</button>
     </div>
     <div>
       <input type="text" id="unpackFilename" placeholder="ZIP File to Unpack" v-model="unpackFilename">
@@ -225,6 +225,9 @@ function createPathBreadcrumb(path) {
 
         let breadcrumb = createPathBreadcrumb(this.$route.params.directory);
         document.getElementById("breadcrumb").replaceChildren(breadcrumb);
+
+        this.zipFilename = (this.$route.params.directory || '/') + '/archive.zip';
+
         // 监听路由参数变化
         this.$watch(
           () => this.$route.params.directory,
@@ -236,6 +239,8 @@ function createPathBreadcrumb(path) {
 
             let breadcrumb = createPathBreadcrumb(newDirectory);
             document.getElementById("breadcrumb").replaceChildren(breadcrumb);
+
+            this.zipFilename = (newDirectory || '/') + '/archive.zip';
 
           }
         );
