@@ -52,8 +52,11 @@
       <button @click="copySelected">Copy Selected</button>
       <button style="color: orange;" @click="moveSelected">Move Selected</button>
     </div>
-    
-    <router-view></router-view>
+
+    <br/>
+    <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
+    <nav id="breadcrumb"></nav>
+    <!-- <router-view></router-view> -->
     <button @click="goToParentDirectory">../</button>
 
     <!-- <div>
@@ -110,10 +113,10 @@
           <td>{{ formattedSize(file.size) }}</td>
           <td>{{ formatDateTime(file.modified_at) }}</td>
           <td>
-            <button @click="copyPath(file.path)">copy path</button>
             <button @click="deleteFile(file.path)">del</button>
             <button @click="copyFile(file.path)">cp</button>
             <button @click="moveFile(file.path)">mv</button>
+            <button @click="copyPath(file.path)">Copy Path</button>
             <button @click="renameFile(file.path)">Rename</button>
             <button v-if="!file.is_directory" @click="downloadFile(file.path)">down</button>
             <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
@@ -138,6 +141,48 @@
   </div>
 
   <script>
+
+function createPathBreadcrumb(path) {
+  if (typeof path !== "string") {
+    throw new Error("path 参数必须是字符串");
+  }
+
+  // 统一路径分隔符为 '/'
+  const normalizedPath = path.replace(/\\/g, "/");
+
+  // 按 '/' 分割并过滤空字符串（避免开头或结尾多余分隔）
+  const parts = normalizedPath.split("/").filter(Boolean);
+
+  // 当前累积路径
+  let currentPath = normalizedPath.startsWith("/") ? "/" : "";
+
+  // 创建 div 容器
+  const container = document.createElement("div");
+
+  parts.forEach((part, index) => {
+    currentPath += part;
+
+    const a = document.createElement("a");
+    a.textContent = part;
+    a.href = '#/directory/' + currentPath;
+
+    container.appendChild(a);
+
+    // 在 a 标签之间添加 /
+    if (index < parts.length - 1) {
+      const slash = document.createTextNode(" / ");
+      container.appendChild(slash);
+    }
+
+    // 追加分隔符，方便下一个 a 标签拼接路径
+    if (index < parts.length - 1) {
+      currentPath += "/";
+    }
+  });
+
+  return container;
+}
+
       // 创建动态路由组件
       const Directory = {
         template: `
@@ -174,14 +219,24 @@
 
       },
       created() {
+        console.log('初始化加载' + this.$route.params.directory);
+
         this.getFileList(this.$route.params.directory); // 初始化加载文件列表
-      console.log('初始化加载' + this.$route.params.directory);
+
+        let breadcrumb = createPathBreadcrumb(this.$route.params.directory);
+        document.getElementById("breadcrumb").replaceChildren(breadcrumb);
         // 监听路由参数变化
         this.$watch(
           () => this.$route.params.directory,
           (newDirectory) => {
+            console.log('路由参数变化' + newDirectory);
+
             this.currentDirectory = newDirectory || '/';
             this.getFileList(newDirectory); // 获取新目录的文件列表
+
+            let breadcrumb = createPathBreadcrumb(newDirectory);
+            document.getElementById("breadcrumb").replaceChildren(breadcrumb);
+
           }
         );
       },
@@ -208,7 +263,8 @@
 
           axios.get('/files', {
             params: {
-              directory: directory
+              directory: directory,
+              show_hidden: true
             }
           })
           .then(response => {
@@ -216,6 +272,7 @@
           })
           .catch(error => {
             console.error(error);
+            alert(error);
           });
         },
         toggleSelectAll() {
@@ -280,7 +337,7 @@
         },
         deleteFile(filename) {
           // 询问用户确认删除
-          if (!confirm('Are you sure you want to delete the selected files/directories?')) {
+          if (!confirm('Are you sure you want to delete ' + filename + '?')) {
               return;
           }
           axios.delete(`/files/${encodeURIComponent(filename)}`)

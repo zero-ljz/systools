@@ -1,5 +1,6 @@
 import os
 import stat
+import platform
 import shutil
 import urllib.request
 import zipfile
@@ -14,6 +15,8 @@ def is_hidden(name, path):
     return name.startswith('.') or has_hidden_attribute(path)
 
 def has_hidden_attribute(filepath): # Windows-specific hidden file check
+    if platform.system() != 'Windows':
+        return False
     try:
         attrs = os.stat(filepath).st_file_attributes
         # 检查文件是否包含隐藏属性
@@ -259,8 +262,8 @@ def get_file_content(filename):
     mime_type, encoding = mimetypes.guess_type(file_path)
 
     # 判断文件是否为文本文件
-    if not mime_type or not mime_type.startswith("text/"):
-        abort(400, "Only text files can be accessed.")
+    # if not mime_type or not mime_type.startswith("text/"):
+    #     abort(400, "Only text files can be accessed.")
 
     # 读取文件内容
     with open(file_path, "r", encoding='utf-8') as file:
@@ -283,8 +286,8 @@ def edit_text_file():
     mime_type, encoding = mimetypes.guess_type(file_path)
 
     # 判断文件是否为文本文件
-    if not mime_type or not mime_type.startswith("text/"):
-        abort(400, "Only text files can be accessed.")
+    # if not mime_type or not mime_type.startswith("text/"):
+    #     abort(400, "Only text files can be accessed.")
 
     # 写入新的文件内容
     with open(file_path, "w") as file:
