@@ -84,8 +84,10 @@ def handle_request(path=None):
         params = split_with_quotes(command, sep=' ')
     elif path is not None: # 参数中包含了斜杠/时要用双引号"将参数包括起来
         # 注: 浏览器会自动对url的path部分编码，但是地址栏显示的还是未编码的path
-        params = [unquote(param) for param in split_with_quotes(path)]
-        command = " ".join(f'"{value}"' for value in params)
+        params = [param for param in split_with_quotes(unquote(path))]
+        if len(params) == 1: # 只有一个参数时，将其视作整条命令并拆分成多个参数
+            params = split_with_quotes(params[0], sep=' ')
+        # command = " ".join(f'"{value}"' for value in params)
     else:
         return static_file('index.html', root='.', mimetype='text/html')
     print()
@@ -120,6 +122,12 @@ def handle_request(path=None):
     return response
 
 def split_with_quotes(string, sep='/'):
+    '''
+    Split a string by a separator, but keep quoted substrings together.
+    Example:
+    split_with_quotes('cmd "arg with spaces" arg2', sep=' ')
+    ['cmd', '"arg with spaces"', 'arg2']
+    '''
     parts = re.findall(r'(?:".*?"|[^' + sep + r'"]+)', string)
     return [part.strip('"') for part in parts]
 

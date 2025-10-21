@@ -17,9 +17,9 @@
     <hr style="margin:5px 0; border:0;">
     <input type="text" id="cwd" placeholder="cwd">
     <hr/>
-    <input type="submit" value="Exec" title="" onclick="window.location.href = genURL(1)">
-    <input type="submit" value="Exec2" onclick="window.location.href = genURL(2)">
-    <input type="button" value="Copy URL2" onclick="copyText = text => navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板')).catch(() => alert('复制失败')); copyText(location.origin + location.pathname + genURL(2));">
+    <label><input id="uriComponentEncoding" type="checkbox">URI Component Encoding</label><br/>
+    <input type="submit" value="Query Mode" title="" onclick="q = prompt('Please confirm the jump target:', location.origin + location.pathname + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
+    <input type="submit" value="Path Mode" title="" onclick="q = prompt('Please confirm the jump target:', location.origin + location.pathname + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
     <div style="display: block; margin: 1rem 0;">
         <input type="text" list="optionList" id="0" placeholder="0">
         <datalist id="optionList">
@@ -115,10 +115,18 @@
 
 
 
-    function genURL(method=1) {
+    function genURL(method=1, isEncode=false) {
         const form = document.getElementById('form1');
         const textareas = form.getElementsByTagName('textarea');
+        let cwd = document.getElementById('cwd').value;
+        let shell = document.getElementById('shell').checked ? 'on' : 'off';
+        let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
+        let optionStr = (cwd ? '&cwd=' + (isEncode ? encodeURIComponent(cwd) : cwd) : '') 
+            + (shell ? '&shell=' + shell : '')
+            + (capture_output ? '&capture_output=' + capture_output : '');
+        let param0Str = document.getElementById('0').value;
         let paramStr = '';
+        let href = '';
 
         if (method == 1)
         {
@@ -134,15 +142,12 @@
                     paramStr += ' ' + paramValue;
                 }
             }
-
-            let cwd = document.getElementById('cwd').value;
-            let shell = document.getElementById('shell').checked ? 'on' : 'off';
-            let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
-            let href = `?cmd=` + encodeURIComponent('' + document.getElementById('0').value + '' + paramStr) // 第一个参数如果有空格需要用户手动加上双引号
-            + ( cwd ? '&cwd=' + encodeURIComponent(cwd) : '' ) 
-            + (shell ? '&shell=' + shell : '')
-            + (capture_output ? '&capture_output=' + capture_output : '');
-            return href;
+            if (param0Str.includes(' ') && ((textareas.length == 1 && textareas[0].value) || textareas.length > 1)) { // 命令名称/路径不带参数时不自动加双引号
+                param0Str = '"' + param0Str + '"';
+            } 
+            
+            href = `?cmd=` + (isEncode ? encodeURIComponent(param0Str + paramStr) : param0Str + paramStr)
+            + optionStr;
         }
         else if (method == 2)
         {
@@ -153,21 +158,20 @@
                 }
                 const paramValue = textareas[i].value;
                 if (paramValue.includes('/')) {
-                    paramStr += '/"' + paramValue + '"'; // encodeURIComponent
+                    paramStr += '/"' + (isEncode ? encodeURIComponent(paramValue) : paramValue) + '"';
                 } else {
-                    paramStr += '/' + paramValue; // encodeURIComponent
+                    paramStr += '/' + (isEncode ? encodeURIComponent(paramValue) : paramValue);
                 }
             }
-            let cwd = document.getElementById('cwd').value;
-            let shell = document.getElementById('shell').checked ? 'on' : 'off';
-            let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
-            console.log(paramStr)
-            let href = '"' + document.getElementById('0').value + '"' + paramStr + '?' 
-            + (cwd ? '&cwd=' + cwd : '') 
-            + (shell ? '&shell=' + shell : '')
-            + (capture_output ? '&capture_output=' + capture_output : '');
-            return href; // 如果paramValue里面包含了"双引号, 浏览器会自动进行编码, 无解
+            if (param0Str.includes('/') && ((textareas.length == 1 && textareas[0].value) || textareas.length > 1)) { // 命令名称/路径不带参数时不自动加双引号
+                param0Str = '"' + param0Str + '"';
+            } 
+            href = (isEncode ? encodeURIComponent(param0Str) : param0Str) + paramStr + '?' 
+            + optionStr;
         }
+
+        console.log(href);
+        return href;
     }
 
 
