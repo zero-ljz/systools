@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>File Manager</title>
@@ -10,6 +11,7 @@
   <!--<script src="static/js/filemgr.js"></script>-->
   <link rel="icon" href="data:," />
 </head>
+
 <body>
   <div id="app">
     <h1>File Manager</h1>
@@ -18,7 +20,7 @@
       <input type="text" id="directory" v-model="currentDirectory">
       <button @click="goToDirectory(currentDirectory)">Go To Directory</button>
     </div>
-    <br/>
+    <br />
     <div>
       <input type="text" id="newDirectory" placeholder="New Directory Name" v-model="newDirectoryName">
       <button @click="createDirectory">Create Directory</button>
@@ -35,7 +37,7 @@
       <input type="text" v-model="remoteURL">
       <button @click="uploadRemoteFile">Upload Remote File</button>
     </div>
-    <br/>
+    <br />
     <div>
       <input type="text" v-model="zipFilename">
       <button @click="packFiles">Pack Selected Files</button>
@@ -44,33 +46,61 @@
       <input type="text" id="unpackFilename" placeholder="ZIP File to Unpack" v-model="unpackFilename">
       <button @click="unpackFiles">Unpack Files</button>
     </div>
-    <br/>
+    <br />
     <div>
       <input type="text" readonly id="selectedFilePath" v-model="selectedFilePath" placeholder="Selected File Path">
     </div>
 
     <hr />
-    
+
     <div>
       <button style="color: red;" @click="deleteSelected">Delete Selected</button>
       <button @click="copySelected">Copy Selected</button>
       <button style="color: orange;" @click="moveSelected">Move Selected</button>
     </div>
 
-    <br/>
-    <label>{{ files.length }} 个项目, 已选择 {{ this.getSelectedFiles().length }} 个项目</label>
-    <br/>
+    <br />
+    <div style="">
+      Filter:
+      <input type="text" v-model="keyword" placeholder="搜索名称..." @keyup.enter="getFileList()">
+
+      <select v-model="fileType" @change="getFileList()">
+        <option value="">All</option>
+        <option value="file">File Only</option>
+        <option value="dir">Dir Only</option>
+      </select>
+
+      <label><input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">Show Hidden Items</label>
+
+      <br />SortBy:
+      <select v-model="sortBy" @change="getFileList()">
+        <option value="name">Name</option>
+        <option value="size">Size</option>
+        <option value="created_at">Created_at</option>
+        <option value="modified_at">Modified_at</option>
+      </select>
+
+      <select v-model="order" @change="getFileList()">
+        <option value="asc">Asc</option>
+        <option value="desc">Desc</option>
+      </select>
+
+
+    </div>
+
+    <div style="">
+      <button @click="prevPage" :disabled="page <= 1">上一页</button>
+      <span>第 {{ page }} / {{ totalPages }} 页（共 {{ total }} 项）</span>
+      <button @click="nextPage" :disabled="page >= totalPages">下一页</button>
+      <label>每页</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
+    </div>
+
     <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
     <nav id="breadcrumb"></nav>
     <!-- <router-view></router-view> -->
     <button @click="goToParentDirectory">../</button>
-    <label>
-      <input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">
-      Show Hidden Files
-    </label>
-  
-
     
+
     <table border="1" cellSpacing="0" style="width: 100%;">
       <thead>
         <tr style="background-color: lightgray; text-align: left;">
@@ -113,80 +143,77 @@
     </table>
 
 
-  <!-- 编辑文件内容对话框 -->
-  <div v-if="showEditDialog">
-    <h3>Edit File</h3>
-    <textarea v-model="editedContent"></textarea>
-    <button @click="saveFileContent">Save</button>
-    <button @click="cancelEdit">Cancel</button>
-  </div>
-
-
-
+    <!-- 编辑文件内容对话框 -->
+    <div v-if="showEditDialog">
+      <h3>Edit File</h3>
+      <textarea v-model="editedContent"></textarea>
+      <button @click="saveFileContent">Save</button>
+      <button @click="cancelEdit">Cancel</button>
+    </div>
 
 
   </div>
 
   <script>
 
-function createPathBreadcrumb(path) {
-  if (typeof path !== "string") {
-    throw new Error("path 参数必须是字符串");
-  }
+    function createPathBreadcrumb(path) {
+      if (typeof path !== "string") {
+        throw new Error("path 参数必须是字符串");
+      }
 
-  // 统一路径分隔符为 '/'
-  const normalizedPath = path.replace(/\\/g, "/");
+      // 统一路径分隔符为 '/'
+      const normalizedPath = path.replace(/\\/g, "/");
 
-  // 按 '/' 分割并过滤空字符串（避免开头或结尾多余分隔）
-  const parts = normalizedPath.split("/").filter(Boolean);
+      // 按 '/' 分割并过滤空字符串（避免开头或结尾多余分隔）
+      const parts = normalizedPath.split("/").filter(Boolean);
 
-  // 当前累积路径
-  let currentPath = normalizedPath.startsWith("/") ? "/" : "";
+      // 当前累积路径
+      let currentPath = normalizedPath.startsWith("/") ? "/" : "";
 
-  // 创建 div 容器
-  const container = document.createElement("div");
+      // 创建 div 容器
+      const container = document.createElement("div");
 
-  parts.forEach((part, index) => {
-    currentPath += part;
+      parts.forEach((part, index) => {
+        currentPath += part;
 
-    const a = document.createElement("a");
-    a.textContent = part;
-    a.href = '#/directory/' + currentPath;
+        const a = document.createElement("a");
+        a.textContent = part;
+        a.href = '#/directory/' + currentPath;
 
-    container.appendChild(a);
+        container.appendChild(a);
 
-    // 在 a 标签之间添加 /
-    if (index < parts.length - 1) {
-      const slash = document.createTextNode(" / ");
-      container.appendChild(slash);
+        // 在 a 标签之间添加 /
+        if (index < parts.length - 1) {
+          const slash = document.createTextNode(" / ");
+          container.appendChild(slash);
+        }
+
+        // 追加分隔符，方便下一个 a 标签拼接路径
+        if (index < parts.length - 1) {
+          currentPath += "/";
+        }
+      });
+
+      return container;
     }
 
-    // 追加分隔符，方便下一个 a 标签拼接路径
-    if (index < parts.length - 1) {
-      currentPath += "/";
-    }
-  });
-
-  return container;
-}
-
-      // 创建动态路由组件
-      const Directory = {
-        template: `
+    // 创建动态路由组件
+    const Directory = {
+      template: `
           <div>{{ currentDirectory }}</div>
         `,
-        computed: {
-            currentDirectory() {
-            return this.$route.params.directory || "/";
-          },
+      computed: {
+        currentDirectory() {
+          return this.$route.params.directory || "/";
         },
-      };
+      },
+    };
 
-      const router = new VueRouter({
-        routes: [
-          { path: '/directory/:directory(.*)', component: Directory }
-        ]
-      });
+    const router = new VueRouter({
+      routes: [
+        { path: '/directory/:directory(.*)', component: Directory }
+      ]
+    });
 
     new Vue({
       router,
@@ -206,6 +233,16 @@ function createPathBreadcrumb(path) {
         selectedFilePath: "", // 选中的文件路径
         showHiddenFiles: false,
 
+        // --- 新增分页/排序/过滤参数 ---
+        page: 1,
+        perPage: 100,
+        total: 0,
+        totalPages: 1,
+
+        sortBy: 'name',
+        order: 'asc',
+        fileType: '', // '', 'file', 'dir'
+        keyword: ''
       },
       created() {
         console.log('初始化加载' + this.$route.params.directory);
@@ -224,6 +261,7 @@ function createPathBreadcrumb(path) {
             console.log('路由参数变化' + newDirectory);
 
             this.currentDirectory = newDirectory || '/';
+            this.page = 1; // 切换目录重置页码
             this.getFileList(newDirectory); // 获取新目录的文件列表
 
             let breadcrumb = createPathBreadcrumb(newDirectory);
@@ -235,7 +273,7 @@ function createPathBreadcrumb(path) {
         );
       },
       methods: {
-         async copyPath(path) {
+        async copyPath(path) {
           try {
             await navigator.clipboard.writeText(path);
             console.log(`路径已复制: ${path}`);
@@ -249,111 +287,131 @@ function createPathBreadcrumb(path) {
         goToDirectory(path) {
           this.$router.push(`/directory/${path}`);
         },
-        getFileList(directory = this.currentDirectory) {
-          console.log('getFileList: ' +directory);
 
-          // 结尾自动补斜杠
+        getFileList(directory = this.currentDirectory) {
           directory = directory.endsWith('/') ? directory : directory + '/';
 
           axios.get('/files', {
             params: {
-              directory: directory,
-              show_hidden: this.showHiddenFiles
+              directory,
+              show_hidden: this.showHiddenFiles,
+              page: this.page,
+              per_page: this.perPage,
+              sort_by: this.sortBy,
+              order: this.order,
+              type: this.fileType,
+              keyword: this.keyword
             }
           })
-          .then(response => {
-            this.files = response.data.files;
-          })
-          .catch(error => {
-            console.error(error);
-            alert(error);
-          });
+            .then(response => {
+              this.files = response.data.files;
+              this.total = response.data.total;
+              this.totalPages = response.data.pages;
+            })
+            .catch(error => {
+              console.error(error);
+              alert("获取文件列表失败");
+            });
+        },
+
+        // --- 分页控制 ---
+        prevPage() {
+          if (this.page > 1) {
+            this.page--;
+            this.getFileList();
+          }
+        },
+        nextPage() {
+          if (this.page < this.totalPages) {
+            this.page++;
+            this.getFileList();
+          }
         },
         toggleSelectAll() {
-            // 切换全选按钮的状态
-            for (let file of this.files) {
-              file.selected = this.selectAll;
-            }
+          // 切换全选按钮的状态
+          for (let file of this.files) {
+            file.selected = this.selectAll;
+          }
         },
         goToParentDirectory() {
           console.log('goToParentDirectory');
-            const parentDirectory = this.currentDirectory
+          const parentDirectory = this.currentDirectory
             .replace(/\\/g, '/') // 统一替换成正斜杠
             .split('/') // 用分隔符分割成数组
             .slice(0, -1) // 去除最后一个元素
             .join('/'); // 用分隔符拼接成字符串
 
-            // 检查上级目录是否为空
-            if (parentDirectory === '') {
-              this.currentDirectory = '/';
-            } else {
-              this.currentDirectory = parentDirectory;
-            }
-            // 更新路由参数
-            this.$router.push(`/directory/${this.currentDirectory}`);
+          // 检查上级目录是否为空
+          if (parentDirectory === '') {
+            this.currentDirectory = '/';
+          } else {
+            this.currentDirectory = parentDirectory;
+          }
+          // 更新路由参数
+          this.$router.push(`/directory/${this.currentDirectory}`);
 
-            //this.getFileList(this.$route.params.directory);
+          //this.getFileList(this.$route.params.directory);
         },
 
         formattedSize(size) {
-            if (size >= 1024 * 1024 * 1024) {
-                return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-            } else if (size >= 1024 * 1024) {
-              return `${(size / (1024 * 1024)).toFixed(2)} MB`;
-            } else if (size >= 1024) {
-              return `${(size / 1024).toFixed(2)} KB`;
-            } else {
-              return `${size} bytes`;
-            }
+          if (size >= 1024 * 1024 * 1024) {
+            return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+          } else if (size >= 1024 * 1024) {
+            return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+          } else if (size >= 1024) {
+            return `${(size / 1024).toFixed(2)} KB`;
+          } else {
+            return `${size} bytes`;
+          }
         },
         formatDateTime(timestamp) {
-            const date = new Date(timestamp * 1000); // 将时间戳转换为毫秒级别
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-          
-            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+          const date = new Date(timestamp * 1000); // 将时间戳转换为毫秒级别
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+
+          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         },
         createDirectory() {
           axios.post('/directories', {
             directory: this.currentDirectory + '/' + this.newDirectoryName
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         createFile() {
           axios.post('/files', {
             filename: this.currentDirectory + '/' + this.newFileName
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         deleteFile(filename) {
           // 询问用户确认删除
           if (!confirm('Are you sure you want to delete ' + filename + '?')) {
-              return;
+            return;
           }
           axios.delete(`/files/${encodeURIComponent(filename)}`)
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         copyFile(filename) {
           const destination = prompt('Enter destination path:', filename);
@@ -374,111 +432,106 @@ function createPathBreadcrumb(path) {
           }
         },
 
-
         deleteSelected() {
-            const selectedFiles = this.getSelectedFiles();
-            // 询问用户确认删除
-            if (!confirm('Are you sure you want to delete the '+selectedFiles.length+' selected files/directories?')) {
-                return;
-            }
-            // 批量删除选中的文件/目录
-            axios.post("/files/delete", { files: selectedFiles })
-                .then(response => {
-                    console.log(response.data.message);
-                    // 刷新文件列表
-                    this.getFileList();
-                })
-                .catch(error => {
-                    console.error(error);
-                });
+          const selectedFiles = this.getSelectedFiles();
+          // 询问用户确认删除
+          if (!confirm('Are you sure you want to delete the ' + selectedFiles.length + ' selected files/directories?')) {
+            return;
+          }
+          // 批量删除选中的文件/目录
+          axios.post("/files/delete", { files: selectedFiles })
+            .then(response => {
+              console.log(response.data.message);
+              // 刷新文件列表
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         copySelected() {
-            // 批量复制选中的文件/目录
-            const destination = prompt('Enter destination path:');
-            if (destination) {
-                axios.post("/files/copy", { files: this.getSelectedFiles(), destination: destination })
-                    .then(response => {
-                        console.log(response.data.message);
-                        // 刷新文件列表
-                        this.getFileList();
-                    })
-                    .catch(error => {
-                        console.error(error);
-                    });
-            }
+          // 批量复制选中的文件/目录
+          const destination = prompt('Enter destination path:');
+          if (destination) {
+            axios.post("/files/copy", { files: this.getSelectedFiles(), destination: destination })
+              .then(response => {
+                console.log(response.data.message);
+                // 刷新文件列表
+                this.getFileList();
+              })
+              .catch(error => {
+                console.error(error);
+              });
+          }
         },
         moveSelected() {
-            // 批量移动选中的文件/目录
-            const destination = prompt('Enter destination path:');
-            if (destination) {
-                axios.post("/files/move", { files: this.getSelectedFiles(), destination: destination })
-                    .then(response => {
-                        console.log(response.data.message);
-                        // 刷新文件列表
-                        this.getFileList();
-                    })
-                    .catch(error => {
-                        console.error(error);
-                    });
-            }
+          // 批量移动选中的文件/目录
+          const destination = prompt('Enter destination path:');
+          if (destination) {
+            axios.post("/files/move", { files: this.getSelectedFiles(), destination: destination })
+              .then(response => {
+                console.log(response.data.message);
+                // 刷新文件列表
+                this.getFileList();
+              })
+              .catch(error => {
+                console.error(error);
+              });
+          }
         },
 
+        // 编辑文件内容
+        editFileContent(filePath) {
+          fetch(`/files/content/${filePath}`)
+            .then((response) => response.json())
+            .then((data) => {
+              if ('content' in data) {
+                this.editedContent = data.content;
+                this.selectedFilePath = filePath;
+                this.showEditDialog = true;
+              }
+            });
+        },
+        // 保存文件内容
+        saveFileContent() {
+          const formData = new FormData();
+          formData.append("file_path", this.selectedFilePath);
+          formData.append("content", this.editedContent);
 
-
-// 编辑文件内容
-editFileContent(filePath) {
-    fetch(`/files/content/${filePath}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if ('content' in data) {
-          this.editedContent = data.content;
-          this.selectedFilePath = filePath;
-          this.showEditDialog = true;
-        }
-      });
-  },
-  // 保存文件内容
-  saveFileContent() {
-    const formData = new FormData();
-    formData.append("file_path", this.selectedFilePath);
-    formData.append("content", this.editedContent);
-
-    fetch("/files/edit", {
-      method: "POST",
-      body: formData,
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        console.log(data.message);
-        // 文件编辑成功，刷新文件列表
-        this.getFileList();
-        this.cancelEdit();
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
-  },
-  // 取消编辑
-  cancelEdit() {
-    this.showEditDialog = false;
-    this.editedContent = "";
-    this.selectedFilePath = "";
-  },
-
-
+          fetch("/files/edit", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              console.log(data.message);
+              // 文件编辑成功，刷新文件列表
+              this.getFileList();
+              this.cancelEdit();
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+            });
+        },
+        // 取消编辑
+        cancelEdit() {
+          this.showEditDialog = false;
+          this.editedContent = "";
+          this.selectedFilePath = "";
+        },
 
         performFileAction(action, filename, destination) {
           axios.post(`/files/${encodeURIComponent(filename)}/actions`, {
             action: action,
             destination: destination
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         downloadFile(filename) {
           window.location.href = `/files/download/${encodeURIComponent(filename)}`;
@@ -501,52 +554,52 @@ editFileContent(filePath) {
           formData.append('directory', this.currentDirectory);
 
           axios.post('/files/upload', formData)
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         uploadRemoteFile() {
           axios.post('/files/upload/remote', {
             directory: this.currentDirectory,
             url: this.remoteURL
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         packFiles() {
           axios.post('/files/pack', {
             files: this.getSelectedFiles(),
             zip_filename: this.zipFilename // 检测到用户输入的是相对路径时自动转为绝对路径
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         unpackFiles() {
           axios.post('/files/unpack', {
             zip_filename: this.unpackFilename,
             extract_directory: this.currentDirectory
           })
-          .then(response => {
-            console.log(response.data.message);
-            this.getFileList();
-          })
-          .catch(error => {
-            console.error(error);
-          });
+            .then(response => {
+              console.log(response.data.message);
+              this.getFileList();
+            })
+            .catch(error => {
+              console.error(error);
+            });
         },
         getSelectedFiles() {
           return this.files.filter(file => file.selected).map(file => file.path);
@@ -555,15 +608,16 @@ editFileContent(filePath) {
       mounted() {
         console.log("mounted");
         // 获取路由参数
-    const directory = this.$route.params.directory;
-    if (directory) {
-      // 更新当前目录
-      this.currentDirectory = directory;
-      // 获取文件列表
-      this.getFileList(directory);
-    }
+        const directory = this.$route.params.directory;
+        if (directory) {
+          // 更新当前目录
+          this.currentDirectory = directory;
+          // 获取文件列表
+          this.getFileList(directory);
+        }
       }
     });
   </script>
 </body>
+
 </html>

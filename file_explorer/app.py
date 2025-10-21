@@ -48,29 +48,68 @@ def index():
 # 获取文件列表
 @app.get("/files")
 def get_file_list():
+    # --- 基础参数 ---
     directory = request.query.directory or "/"
     directory_path = os.path.abspath(directory)
-    show_hidden = request.query.show_hidden in ["1", "true", "True", "on", "yes"] or False
+    show_hidden = request.query.show_hidden in ["1", "true", "True", "on", "yes"]
+
+    # --- 分页参数 ---
+    page = int(request.query.page or 1)
+    per_page = int(request.query.per_page or 20)
+    offset = (page - 1) * per_page
+
+    # --- 排序参数 ---
+    sort_by = request.query.sort_by or "name"  # 可选: name, size, created_at, modified_at
+    order = request.query.order or "asc"       # asc 或 desc
+
+    # --- 过滤参数 ---
+    file_type = request.query.type  # 可选: file / dir
+    keyword = request.query.keyword or ""
+
+    # --- 获取文件列表 ---
     file_list = []
-    
     for name in os.listdir(directory_path):
-        if not show_hidden and is_hidden(name, os.path.join(directory_path, name)):
-                continue
         file_path = os.path.join(directory_path, name)
-        file_stat = os.stat(file_path)
-        
+        if not show_hidden and is_hidden(name, file_path):
+            continue
+        if keyword and keyword.lower() not in name.lower():
+            continue
+
+        is_dir = os.path.isdir(file_path)
+        if file_type == "file" and is_dir:
+            continue
+        if file_type == "dir" and not is_dir:
+            continue
+
+        stat = os.stat(file_path)
         file_info = {
             "name": name,
             "path": file_path,
-            "size": file_stat.st_size,
-            "is_directory": os.path.isdir(file_path),
-            "created_at": int(file_stat.st_ctime),
-            "modified_at": int(file_stat.st_mtime)
+            "size": stat.st_size,
+            "is_directory": is_dir,
+            "created_at": int(stat.st_ctime),
+            "modified_at": int(stat.st_mtime)
         }
-        
         file_list.append(file_info)
-    
-    return {"files": file_list}
+
+    # --- 排序 ---
+    reverse = (order == "desc")
+    if sort_by in ["name", "size", "created_at", "modified_at"]:
+        file_list.sort(key=lambda f: f[sort_by], reverse=reverse)
+
+    # --- 分页 ---
+    total = len(file_list)
+    paged_files = file_list[offset: offset + per_page]
+
+    # --- 返回结果 ---
+    return {
+        "directory": directory_path,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "pages": (total + per_page - 1) // per_page,
+        "files": paged_files
+    }
 
 
 # 创建文本文件
