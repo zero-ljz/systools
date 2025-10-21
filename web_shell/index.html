@@ -12,13 +12,14 @@
 <p>
 
 <form id="form1" onsubmit="return saveFormData();">
-        <input type="checkbox" id="shell"><label for="shell">shell</label> &nbsp;
+        <input type="checkbox" id="shell"><label for="shell" title="用本程序启动时的Shell执行">shell</label> &nbsp;
         <input type="checkbox" id="capture_output" checked><label for="capture_output">capture_output</label> &nbsp;
     <hr style="margin:5px 0; border:0;">
     <input type="text" id="cwd" placeholder="cwd">
     <hr/>
-    <input type="submit" value="Exec" onclick="setAction()">
-    <input type="submit" value="Exec2" onclick="setAction2()">
+    <input type="submit" value="Exec" title="" onclick="window.location.href = genURL(1)">
+    <input type="submit" value="Exec2" onclick="window.location.href = genURL(2)">
+    <input type="button" value="Copy URL2" onclick="copyText = text => navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板')).catch(() => alert('复制失败')); copyText(location.origin + location.pathname + genURL(2));">
     <div style="display: block; margin: 1rem 0;">
         <input type="text" list="optionList" id="0" placeholder="0">
         <datalist id="optionList">
@@ -112,61 +113,63 @@
         }
     }
 
-    function setAction() {
-        const form = document.getElementById('form1');
 
-        // 通过查询字符串传递参数
+
+    function genURL(method=1) {
+        const form = document.getElementById('form1');
         const textareas = form.getElementsByTagName('textarea');
         let paramStr = '';
-        for (let i = 0; i < textareas.length; i++) {
-            if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
-                continue;
+
+        if (method == 1)
+        {
+            // 通过查询字符串传递参数
+            for (let i = 0; i < textareas.length; i++) {
+                if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
+                    continue;
+                }
+                const paramValue = textareas[i].value;
+                if (paramValue.includes(' ')) {
+                    paramStr += ' "' + paramValue + '"';
+                } else {
+                    paramStr += ' ' + paramValue;
+                }
             }
-            const paramValue = textareas[i].value;
-            if (paramValue.includes(' ')) {
-                paramStr += ' "' + paramValue + '"';
-            } else {
-                paramStr += ' ' + paramValue;
-            }
+
+            let cwd = document.getElementById('cwd').value;
+            let shell = document.getElementById('shell').checked ? 'on' : 'off';
+            let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
+            let href = `?cmd=` + encodeURIComponent('' + document.getElementById('0').value + '' + paramStr) // 第一个参数如果有空格需要用户手动加上双引号
+            + ( cwd ? '&cwd=' + encodeURIComponent(cwd) : '' ) 
+            + (shell ? '&shell=' + shell : '')
+            + (capture_output ? '&capture_output=' + capture_output : '');
+            return href;
         }
-
-        let cwd = document.getElementById('cwd').value;
-        let shell = document.getElementById('shell').checked ? 'on' : 'off';
-        let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
-        window.location.href = `?cmd=` + encodeURIComponent('' + document.getElementById('0').value + '' + paramStr) // 第一个参数如果有空格需要用户手动加上双引号
-        + ( cwd ? '&cwd=' + encodeURIComponent(cwd) : '' ) 
-        + (shell ? '&shell=' + shell : '')
-        + (capture_output ? '&capture_output=' + capture_output : '');
-
+        else if (method == 2)
+        {
+            // 通过路径传递参数，参数中包含了斜杠/时要用双引号"包括起来
+            for (let i = 0; i < textareas.length; i++) {
+                if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
+                    continue;
+                }
+                const paramValue = textareas[i].value;
+                if (paramValue.includes('/')) {
+                    paramStr += '/"' + paramValue + '"'; // encodeURIComponent
+                } else {
+                    paramStr += '/' + paramValue; // encodeURIComponent
+                }
+            }
+            let cwd = document.getElementById('cwd').value;
+            let shell = document.getElementById('shell').checked ? 'on' : 'off';
+            let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
+            console.log(paramStr)
+            let href = '"' + document.getElementById('0').value + '"' + paramStr + '?' 
+            + (cwd ? '&cwd=' + cwd : '') 
+            + (shell ? '&shell=' + shell : '')
+            + (capture_output ? '&capture_output=' + capture_output : '');
+            return href; // 如果paramValue里面包含了"双引号, 浏览器会自动进行编码, 无解
+        }
     }
 
-    function setAction2() {
-        const form = document.getElementById('form1');
-
-        // 通过路径传递参数，参数中包含了斜杠/时要用双引号"包括起来
-        const textareas = form.getElementsByTagName('textarea');
-        let paramStr = '';
-        for (let i = 0; i < textareas.length; i++) {
-            if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
-                continue;
-            }
-            const paramValue = textareas[i].value;
-            if (paramValue.includes('/')) {
-                paramStr += '/"' + paramValue + '"'; // encodeURIComponent
-            } else {
-                paramStr += '/' + paramValue; // encodeURIComponent
-            }
-        }
-        let cwd = document.getElementById('cwd').value;
-        let shell = document.getElementById('shell').checked ? 'on' : 'off';
-        let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
-        console.log(paramStr)
-        let href = '/"' + document.getElementById('0').value + '"' + paramStr + '?' 
-        + (cwd ? '&cwd=' + cwd : '') 
-        + (shell ? '&shell=' + shell : '')
-        + (capture_output ? '&capture_output=' + capture_output : '');
-        window.location.href = href; // 如果paramValue里面包含了"双引号, 浏览器会自动进行编码, 无解
-    }
 
     window.onload = function () {
         loadFormData();
