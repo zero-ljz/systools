@@ -27,7 +27,7 @@ user_home_directory = os.path.expanduser("~")
 
 app = Bottle()
 auth_username = os.environ.get('AUTH_USERNAME', '')
-auth_password = os.environ.get('AUTH_PASSWORD', '123123') # Authorization: Basic OjEyMzEyMw==
+auth_password = os.environ.get('AUTH_PASSWORD', '123123') # curl -H "Authorization: Basic OjEyMzEyMw==" http://127.0.0.1:8000/ls
 
 # 假设这是保存在服务器端的用户名和密码信息
 users = {
@@ -78,7 +78,7 @@ def handle_request(path=None):
         abort(404, 'Not Found')
     cwd = request.query.cwd or request.forms.cwd or user_home_directory
     shell = (request.query.shell or request.forms.shell) in ["1", "true", "True", "on", "yes"]
-    capture_output = (request.query.capture_output or request.forms.capture_output) in ["1", "true", "True", "on", "yes"]
+    capture_output = (request.query.capture_output or request.forms.capture_output or "true").lower() in ["1", "true", "on", "yes"]
     
     if command := request.query.cmd or request.forms.cmd: # 参数中包含了空格时要用双引号"将参数包括起来
         params = split_with_quotes(command, sep=' ')
