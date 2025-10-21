@@ -27,7 +27,7 @@ user_home_directory = os.path.expanduser("~")
 
 app = Bottle()
 auth_username = os.environ.get('AUTH_USERNAME', '')
-auth_password = os.environ.get('AUTH_PASSWORD', '123123') # curl -H "Authorization: Basic OjEyMzEyMw==" http://127.0.0.1:8000/ls
+auth_password = os.environ.get('AUTH_PASSWORD', '123123') # curl -H "Authorization: Basic OjEyMzEyMw==" "http://127.0.0.1:8000/ls"
 
 # 假设这是保存在服务器端的用户名和密码信息
 users = {
@@ -81,6 +81,7 @@ def handle_request(path=None):
     capture_output = (request.query.capture_output or request.forms.capture_output or "true").lower() in ["1", "true", "on", "yes"]
     
     if command := request.query.cmd or request.forms.cmd: # 参数中包含了空格时要用双引号"将参数包括起来
+        command = command.replace('%26', '&') # 将参数中的所有%26还原为&, 配合前端代码中的替换
         params = split_with_quotes(command, sep=' ')
     elif path is not None: # 参数中包含了斜杠/时要用双引号"将参数包括起来
         # 注: 浏览器会自动对url的path部分编码，但是地址栏显示的还是未编码的path

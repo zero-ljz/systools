@@ -135,15 +135,18 @@
                 if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
                     continue;
                 }
-                const paramValue = textareas[i].value;
+                const paramValue = textareas[i].value.replace('&', '%26'); // 参数中包含&时强制替换为&的编码%26
                 if (paramValue.includes(' ')) {
                     paramStr += ' "' + paramValue + '"';
                 } else {
                     paramStr += ' ' + paramValue;
                 }
             }
-            if (param0Str.includes(' ') && ((textareas.length == 1 && textareas[0].value) || textareas.length > 1)) { // 命令名称/路径不带参数时不自动加双引号
-                param0Str = '"' + param0Str + '"';
+            param0Str = param0Str.replace('&', '%26'); // 参数中包含&时强制替换为&的编码%26
+            if (param0Str.includes(' ')) { // 命令名称/路径不带参数时不自动加双引号
+                if((textareas.length == 1 && textareas[0].value) || textareas.length > 1) {
+                    param0Str = '"' + param0Str + '"';
+                }
             } 
             
             href = `?cmd=` + (isEncode ? encodeURIComponent(param0Str + paramStr) : param0Str + paramStr)
@@ -163,8 +166,10 @@
                     paramStr += '/' + (isEncode ? encodeURIComponent(paramValue) : paramValue);
                 }
             }
-            if (param0Str.includes('/') && ((textareas.length == 1 && textareas[0].value) || textareas.length > 1)) { // 命令名称/路径不带参数时不自动加双引号
-                param0Str = '"' + param0Str + '"';
+            if (param0Str.includes('/')) { // 命令名称/路径不带参数时不自动加双引号
+                if((textareas.length == 1 && textareas[0].value) || textareas.length > 1) {
+                    param0Str = '"' + param0Str + '"';
+                }
             } 
             href = (isEncode ? encodeURIComponent(param0Str) : param0Str) + paramStr + '?' 
             + optionStr;
