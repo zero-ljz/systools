@@ -8,6 +8,7 @@
 # export PYTHONIOENCODING=utf-8
 # sys.stdout.reconfigure(encoding='utf-8')
 
+from typing import List
 import subprocess
 import re, sys, os, base64, datetime, time
 from bottle import Bottle, request, template, response, static_file, abort, HTTPResponse
@@ -85,7 +86,7 @@ def handle_request(path=None):
         params = split_with_quotes(command, sep=' ')
     elif path is not None: # 参数中包含了斜杠/时要用双引号"将参数包括起来
         # 注: 浏览器会自动对url的path部分编码，但是地址栏显示的还是未编码的path
-        params = [param for param in split_with_quotes(unquote(path))]
+        params = [param for param in split_with_quotes(unquote(path), '/')]
         if len(params) == 1: # 只有一个参数时，将其视作整条命令并拆分成多个参数
             params = split_with_quotes(params[0], sep=' ')
         # command = " ".join(f'"{value}"' for value in params)
@@ -122,7 +123,7 @@ def handle_request(path=None):
         pass
     return response
 
-def split_with_quotes(string, sep='/'):
+def split_with_quotes1(string, sep='/'):
     '''
     Split a string by a separator, but keep quoted substrings together.
     Example:
@@ -131,6 +132,89 @@ def split_with_quotes(string, sep='/'):
     '''
     parts = re.findall(r'(?:".*?"|[^' + sep + r'"]+)', string)
     return [part.strip('"') for part in parts]
+
+
+def split_with_quotes(s: str, sep: str = '/', keep_quotes: bool = False,
+                      trim: bool = True, allow_empty: bool = False) -> List[str]:
+    """
+    Split a string by a separator `sep`, but keep quoted substrings together.
+
+    - sep: separator string (can be any string; default '/')
+    - keep_quotes: if True, keep surrounding quotes in returned tokens; if False, strip them.
+    - trim: if True, strip whitespace around each token.
+    - allow_empty: if False, drop empty tokens produced by consecutive separators or
+                   separator at ends; if True, keep them.
+
+    Examples:
+    split_with_quotes('cmd "arg with spaces" arg2', sep=' ')
+      -> ['cmd', '"arg with spaces"', 'arg2']  (if keep_quotes=True)
+
+    split_with_quotes('path/segment/"quoted/part"/next', sep='/')
+      -> ['path', 'segment', '"quoted/part"', 'next']
+    """
+    if sep == "":
+        raise ValueError("sep must be a non-empty string")
+
+    parts = []
+    cur = []
+    in_quote = False
+    quote_char = None
+    i = 0
+    L = len(s)
+    seplen = len(sep)
+
+    while i < L:
+        ch = s[i]
+
+        # enter quote
+        if not in_quote and (ch == '"' or ch == "'"):
+            in_quote = True
+            quote_char = ch
+            cur.append(ch)
+            i += 1
+            continue
+
+        # inside quote: accept everything until matching quote (no escaping handled)
+        if in_quote:
+            cur.append(ch)
+            if ch == quote_char:
+                in_quote = False
+                quote_char = None
+            i += 1
+            continue
+
+        # not in quote: check for sep match
+        if s.startswith(sep, i):
+            token = ''.join(cur)
+            if trim:
+                token = token.strip()
+            if token != "" or allow_empty:
+                parts.append(token)
+            cur = []
+            i += seplen
+            continue
+
+        # normal char
+        cur.append(ch)
+        i += 1
+
+    # append final token
+    token = ''.join(cur)
+    if trim:
+        token = token.strip()
+    if token != "" or allow_empty:
+        parts.append(token)
+
+    # optionally strip outer quotes from tokens
+    if not keep_quotes:
+        def strip_outer_quotes(t):
+            if len(t) >= 2 and ((t[0] == t[-1]) and t[0] in ('"', "'")):
+                return t[1:-1]
+            return t
+        parts = [strip_outer_quotes(p) for p in parts]
+
+    return parts
+
 
 def try_decode(byte_data, encodings=['utf-8', 'utf-8-sig', 'gbk', 'latin-1']):
     for encoding in encodings:
