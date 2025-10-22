@@ -1,9 +1,12 @@
 # pip install -r requirements.txt
 
 fire
-bottle
+bottle==0.12.25
 cheroot
 # gunicorn==20.1.0
 requests
 
 psutil
+
+gevent-websocket
+py-cpuinfo==9.0.0

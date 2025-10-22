@@ -89,6 +89,7 @@ def handle_request(path=None):
         print('Exception:', e)
         return 'Exception: ' + str(e)
 
+    output = ''
     if capture_output:
         output = try_decode(completed_process.stdout)
         if completed_process.returncode != 0:
