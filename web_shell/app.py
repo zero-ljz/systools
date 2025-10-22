@@ -59,7 +59,7 @@ def requires_auth(f):
 @app.route('/', method='GET')
 # @app.route('/<path:re:.*>')
 @app.route('/<path:path>')
-@requires_auth
+# @requires_auth
 def handle_request(path=None):
     if path == 'favicon.ico':
         abort(404, 'Not Found')

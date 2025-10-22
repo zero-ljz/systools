@@ -76,7 +76,7 @@ def find_process_by_command(command) -> list[int]:
     if platform.system() == 'Windows':
         completed_process = subprocess.run(['powershell', '-Command', "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*" + command + "*' } | Select-Object -ExpandProperty ProcessId"], capture_output=True, text=True)
     elif platform.system() == 'Linux':
-        completed_process = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        completed_process = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) # requires procps package
     if completed_process.returncode == 0 and completed_process.stdout:
         pid_list = list(map(int, completed_process.stdout.strip().split('\n')))
     return pid_list
