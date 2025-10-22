@@ -265,20 +265,22 @@ def unpack_files():
 
     return {"message": "Files unpacked successfully."}
 
-
-# 上传文件
+# 上传多个文件
 @app.post("/files/upload")
-def upload_file():
+def upload_files():
     directory = request.forms.get("directory", "/")
     upload_path = os.path.abspath(directory)
 
-    file = request.files.get("file")
-    filename = file.raw_filename # 使用 raw_filename 来获取原始的文件名
-    print(filename)
-    file_path = os.path.join(upload_path, filename)
+    files = request.files.getall("files")  # 获取多个文件
+    if not files:
+        return {"error": "No files uploaded."}
 
-    file.save(file_path)
-    return {"message": "File uploaded successfully."}
+    for file in files:
+        filename = file.raw_filename # 使用 raw_filename 来获取原始的文件名
+        file_path = os.path.join(upload_path, filename)
+        file.save(file_path)
+
+    return {"message": f"{len(files)} file(s) uploaded successfully."}
 
 
 # 从远程URL上传文件
@@ -308,6 +310,28 @@ def download_file(filename):
         response.status = 404
         return {"error": "File not found."}
 
+@app.get('/files/preview/<filename:path>')
+def preview_file(filename):
+    file_path = os.path.abspath(unquote(filename))
+    filename = os.path.basename(file_path)
+    
+    # 检查文件是否存在
+    if not os.path.isfile(file_path):
+        response.status = 404
+        return {'error': 'File not found'}
+
+    # 使用 mimetypes 识别 MIME 类型
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = 'application/octet-stream'  # 默认类型
+
+    # 设置响应头以支持预览
+    response.content_type = mime_type
+    response.set_header('Content-Disposition', f'inline; filename="{filename}"')
+
+    # 读取并返回文件内容
+    with open(file_path, 'rb') as f:
+        return f.read()
 
 # 获取文件内容
 @app.get("/files/content/<filename:path>")

@@ -29,9 +29,10 @@
       <input type="text" id="newFile" placeholder="New File Name" v-model="newFileName">
       <button @click="createFile">Create File</button>
     </div>
+
     <div>
-      <input type="file" ref="fileInput" @change="uploadFile">
-      <button @click="openFileInput">Upload Local File</button>
+      <input type="file" ref="fileInput" multiple @change="handleFileChange">
+      <button @click="uploadFiles">Upload Local File</button>
     </div>
     <div>
       <input type="text" v-model="remoteURL">
@@ -135,7 +136,8 @@
             <button @click="deleteFile(file.path)">del</button>
             <button @click="copyFile(file.path)">cp</button>
             <button @click="moveFile(file.path)">mv</button>
-            <button v-if="!file.is_directory" @click="downloadFile(file.path)">down</button>
+            <button v-if="!file.is_directory" @click="previewFile(file.path)">preview</button>
+            <button v-if="!file.is_directory" @click="downloadFile(file.path)">download</button>
             <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
           </td>
         </tr>
@@ -246,6 +248,7 @@
         editedContent: "", // 编辑后的文件内容
         selectedFilePath: "", // 选中的文件路径
         showHiddenFiles: false,
+        selectedFiles: [], // 多文件上传控件选择的文件
 
         // --- 新增分页/排序/过滤参数 ---
         page: 1,
@@ -550,32 +553,46 @@
         downloadFile(filename) {
           window.location.href = `${BASE_URL}files/download/${encodeURIComponent(filename)}`;
         },
+        previewFile(filename) {
+          window.location.href = `${BASE_URL}files/preview/${encodeURIComponent(filename)}`;
+        },
         handleFileClick(file) {
           if (file.is_directory) {
             this.currentDirectory = file.path;
             this.getFileList();
           } else {
-            this.downloadFile(file.path);
+            this.previewFile(file.path);
           }
         },
-        openFileInput() {
-          this.$refs.fileInput.click();
-        },
-        uploadFile(event) {
-          const file = event.target.files[0];
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('directory', this.currentDirectory);
 
-          axios.post(`${BASE_URL}files/upload`, formData)
-            .then(response => {
-              console.log(response.data.message);
-              this.getFileList();
-            })
-            .catch(error => {
-              console.error(error);
-            });
-        },
+
+handleFileChange(event) {
+    this.selectedFiles = Array.from(event.target.files);
+  },
+  uploadFiles() {
+    if (this.selectedFiles.length === 0) {
+      console.warn("未选择任何文件");
+      return;
+    }
+
+    const formData = new FormData();
+    this.selectedFiles.forEach(file => {
+      formData.append('files', file); // 注意：字段名统一为 'files'
+    });
+    formData.append('directory', this.currentDirectory);
+
+    axios.post(`${BASE_URL}files/upload`, formData)
+      .then(response => {
+        console.log(response.data.message);
+        this.getFileList();
+        this.selectedFiles = [];
+        this.$refs.fileInput.value = null;
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  },
+        
         uploadRemoteFile() {
           axios.post(`${BASE_URL}files/upload/remote`, {
             directory: this.currentDirectory,
