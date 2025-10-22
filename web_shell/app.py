@@ -18,7 +18,6 @@ import io
 from urllib.parse import unquote, unquote_plus
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 app_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 logging.basicConfig(filename=app_name + '.log', level=logging.INFO)
@@ -91,7 +90,7 @@ def handle_request(path=None):
             params = split_with_quotes(params[0], sep=' ')
         # command = " ".join(f'"{value}"' for value in params)
     else:
-        return static_file('index.html', root='.', mimetype='text/html')
+        return static_file('index.html', root=script_dir, mimetype='text/html')
     print()
     
     print(datetime.datetime.now(), 'Starting', '\n', 'cmd:', params, '\n', 'cwd:', cwd)

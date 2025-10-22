@@ -11,7 +11,6 @@ from urllib.parse import unquote, unquote_plus
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 def is_hidden(name, path):
     return name.startswith('.') or has_hidden_attribute(path)
@@ -42,7 +41,7 @@ app.add_hook('before_request', echo)
 
 @app.route('/')
 def index():
-    return static_file('index.html', root='.')
+    return static_file('index.html', root=script_dir, mimetype='text/html')
 
 
 # 获取文件列表

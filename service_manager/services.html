@@ -5,16 +5,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <link rel="icon" href="data:,">
+
 </head>
 
 <body>
-    <form method="get" action="find_process" id="form1">
+    <form method="get" onsubmit="this.action = BASE_URL + 'find_process';" id="form1">
         <input type="text" name="cmd_line" placeholder="Command Line or PID" value="">
         <input type="submit" value="Find Process">
     </form>
     <hr style="margin:10px 0; border:0;">
 
-    <form method="get" action="test_start" id="form2">
+    <form method="get" onsubmit="this.action = BASE_URL + 'test_start';" id="form2">
         <input type="text" name="cmd" placeholder="Command" value="">
         <input type="text" name="cwd" placeholder="Current Working Directory" value="">
         <input type="submit" value="Test Start">
@@ -25,14 +26,14 @@
         服务列表
     </h2>
     <section style="overflow: auto; white-space: nowrap;">
-        <a href="javascript: (() => { const q = prompt('请输入服务名称：', '.json'); if (q == null) return; location.href = 'update?name=' + q; })();">添加</a>
+        <a href="javascript: (() => { const q = prompt('请输入服务名称：', '.json'); if (q == null) return; location.href = BASE_URL + 'update?name=' + q; })();">添加</a>
         <button onclick=" 
         const names = []; 
         document.querySelectorAll(`table > tbody tr td input[type='checkbox']:checked`).forEach(checkbox => names.push(checkbox.value)); 
         if (names.length == 0) { alert('你还没有选择任何一项'); return; }
         if (!confirm('已选择 ' + names.length + ' 项，' + '你确定吗？')) return; this.disabled = true;
         (() => {
-        fetch('start?name=' + encodeURIComponent(names.join(',')))
+        fetch(BASE_URL + 'start?name=' + encodeURIComponent(names.join(',')))
         .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
         })();
         void(0);">启动所选</button>
@@ -42,7 +43,7 @@
         if (names.length == 0) { alert('你还没有选择任何一项'); return; }
         if (!confirm('已选择 ' + names.length + ' 项，' + '你确定吗？')) return; this.disabled = true;
         (() => {
-        fetch('stop?name=' + encodeURIComponent(names.join(',')))
+        fetch(BASE_URL + 'stop?name=' + encodeURIComponent(names.join(',')))
         .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
         })();
         void(0);">停止所选</button>
@@ -64,7 +65,7 @@
             % for i, (name, service) in enumerate(services.items()):
                 <tr>
                     <td><input type="checkbox" value="{{ service.name }}"></td>
-                    <td style="padding: 5px;"><a href="{{ 'update?name=' + service.name + '.json' }}">{{ service.name }}</a></td>
+                    <td style="padding: 5px;"><a onclick="location.href=BASE_URL + `{{ 'update?name=' + service.name + '.json' }}`; return false;" href="#">{{ service.name }}</a></td>
                     <td><textarea name="cmd" cols="40" rows="3" style="border: none; outline: none;" readonly>{{ service.cmd }}</textarea></td>
                     <td style="padding: 5px;">{{ service.cwd }}</td>
                     <td style="padding: 5px;">{{ '🟢' if service.is_enabled else '⚪'}}</td>
@@ -72,21 +73,21 @@
                     <td style="padding: 5px;">
                         <button onclick = "this.disabled = true;
                         (() => {
-                            fetch('{{ "stop" if service.status().startswith("running") else "start" }}?name=' + encodeURIComponent('{{ service.name }}'))
+                            fetch(BASE_URL + '{{ "stop" if service.status().startswith("running") else "start" }}?name=' + encodeURIComponent('{{ service.name }}'))
                             .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); }); 
                         })();
                         void(0);">{{ "停止" if service.status().startswith("running") else "启动" }}</button>
                         <button onclick="if (!confirm('你确定吗？')) return; this.disabled = true;
                         (() => { 
-                            fetch('delete?name=' + encodeURIComponent('{{ service.name }}' + '.json'))
+                            fetch(BASE_URL + 'delete?name=' + encodeURIComponent('{{ service.name }}' + '.json'))
                             .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); }); 
                         })();" style="color: red;">删除</button>
                     </td>
                     <td style="padding: 5px;">
-                        <a href="{{ 'log_view?name=' + service.name + '.json' }}">查看</a>
+                        <a href="javascript:location.href=BASE_URL + `{{ 'log_view?name=' + service.name + '.json' }}`;">查看</a>
                         <button onclick="if (!confirm('你确定吗？')) return; this.disabled = true;
                         (() => { 
-                            fetch('clear_log?name=' + encodeURIComponent('{{ service.name }}' + '.json'))
+                            fetch(BASE_URL + 'clear_log?name=' + encodeURIComponent('{{ service.name }}' + '.json'))
                             .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); }); 
                         })();" style="color: orange;">清空</button>
                     </td>
@@ -98,8 +99,18 @@
         共 {{ len(services) }} 条记录
     </section>
 
-    <script>
-
+        <script>
+  function getBaseUrl() {
+    let { protocol, host, pathname } = window.location;
+    // pathname 未以/结尾时加上/
+    if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
+    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    return `${protocol}//${host}${path}`;
+  }
+  const BASE_URL = getBaseUrl();
+  console.log("BASE_URL:", BASE_URL);
     </script>
 </body>
 

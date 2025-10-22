@@ -156,7 +156,21 @@
 
   <script>
 
+  function getBaseUrl() {
+    let { protocol, host, pathname } = window.location;
+    // pathname 未以/结尾时加上/
+    if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
+    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    return `${protocol}//${host}${path}`;
+  }
+  const BASE_URL = getBaseUrl();
+  console.log("BASE_URL:", BASE_URL);
+
+
     function createPathBreadcrumb(path) {
+      console.log("createPathBreadcrumb:", path);
       if (typeof path !== "string") {
         throw new Error("path 参数必须是字符串");
       }
@@ -249,8 +263,8 @@
 
         this.getFileList(this.$route.params.directory); // 初始化加载文件列表
 
-        let breadcrumb = createPathBreadcrumb(this.$route.params.directory);
-        document.getElementById("breadcrumb").replaceChildren(breadcrumb);
+        // let breadcrumb = createPathBreadcrumb(this.$route.params.directory);
+        // document.getElementById("breadcrumb").replaceChildren(breadcrumb);
 
         this.zipFilename = this.$route.params.directory + '/archive.zip';
 
@@ -291,7 +305,7 @@
         getFileList(directory = this.currentDirectory) {
           directory = directory.endsWith('/') ? directory : directory + '/';
 
-          axios.get('/files', {
+          axios.get(`${BASE_URL}files`, {
             params: {
               directory,
               show_hidden: this.showHiddenFiles,
@@ -376,7 +390,7 @@
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         },
         createDirectory() {
-          axios.post('/directories', {
+          axios.post(`${BASE_URL}directories`, {
             directory: this.currentDirectory + '/' + this.newDirectoryName
           })
             .then(response => {
@@ -388,7 +402,7 @@
             });
         },
         createFile() {
-          axios.post('/files', {
+          axios.post(`${BASE_URL}files`, {
             filename: this.currentDirectory + '/' + this.newFileName
           })
             .then(response => {
@@ -404,7 +418,7 @@
           if (!confirm('Are you sure you want to delete ' + filename + '?')) {
             return;
           }
-          axios.delete(`/files/${encodeURIComponent(filename)}`)
+          axios.delete(`${BASE_URL}files/${encodeURIComponent(filename)}`)
             .then(response => {
               console.log(response.data.message);
               this.getFileList();
@@ -439,7 +453,7 @@
             return;
           }
           // 批量删除选中的文件/目录
-          axios.post("/files/delete", { files: selectedFiles })
+          axios.post(`${BASE_URL}files/delete`, { files: selectedFiles })
             .then(response => {
               console.log(response.data.message);
               // 刷新文件列表
@@ -453,7 +467,7 @@
           // 批量复制选中的文件/目录
           const destination = prompt('Enter destination path:');
           if (destination) {
-            axios.post("/files/copy", { files: this.getSelectedFiles(), destination: destination })
+            axios.post(`${BASE_URL}files/copy`, { files: this.getSelectedFiles(), destination: destination })
               .then(response => {
                 console.log(response.data.message);
                 // 刷新文件列表
@@ -468,7 +482,7 @@
           // 批量移动选中的文件/目录
           const destination = prompt('Enter destination path:');
           if (destination) {
-            axios.post("/files/move", { files: this.getSelectedFiles(), destination: destination })
+            axios.post(`${BASE_URL}files/move`, { files: this.getSelectedFiles(), destination: destination })
               .then(response => {
                 console.log(response.data.message);
                 // 刷新文件列表
@@ -482,7 +496,7 @@
 
         // 编辑文件内容
         editFileContent(filePath) {
-          fetch(`/files/content/${filePath}`)
+          fetch(`${BASE_URL}files/content/${filePath}`)
             .then((response) => response.json())
             .then((data) => {
               if ('content' in data) {
@@ -498,7 +512,7 @@
           formData.append("file_path", this.selectedFilePath);
           formData.append("content", this.editedContent);
 
-          fetch("/files/edit", {
+          fetch(`${BASE_URL}files/edit`, {
             method: "POST",
             body: formData,
           })
@@ -521,7 +535,7 @@
         },
 
         performFileAction(action, filename, destination) {
-          axios.post(`/files/${encodeURIComponent(filename)}/actions`, {
+          axios.post(`${BASE_URL}files/${encodeURIComponent(filename)}/actions`, {
             action: action,
             destination: destination
           })
@@ -534,7 +548,7 @@
             });
         },
         downloadFile(filename) {
-          window.location.href = `/files/download/${encodeURIComponent(filename)}`;
+          window.location.href = `${BASE_URL}files/download/${encodeURIComponent(filename)}`;
         },
         handleFileClick(file) {
           if (file.is_directory) {
@@ -553,7 +567,7 @@
           formData.append('file', file);
           formData.append('directory', this.currentDirectory);
 
-          axios.post('/files/upload', formData)
+          axios.post(`${BASE_URL}files/upload`, formData)
             .then(response => {
               console.log(response.data.message);
               this.getFileList();
@@ -563,7 +577,7 @@
             });
         },
         uploadRemoteFile() {
-          axios.post('/files/upload/remote', {
+          axios.post(`${BASE_URL}files/upload/remote`, {
             directory: this.currentDirectory,
             url: this.remoteURL
           })
@@ -576,7 +590,7 @@
             });
         },
         packFiles() {
-          axios.post('/files/pack', {
+          axios.post(`${BASE_URL}files/pack`, {
             files: this.getSelectedFiles(),
             zip_filename: this.zipFilename // 检测到用户输入的是相对路径时自动转为绝对路径
           })
@@ -589,7 +603,7 @@
             });
         },
         unpackFiles() {
-          axios.post('/files/unpack', {
+          axios.post(`${BASE_URL}files/unpack`, {
             zip_filename: this.unpackFilename,
             extract_directory: this.currentDirectory
           })

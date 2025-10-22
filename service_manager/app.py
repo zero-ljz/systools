@@ -5,7 +5,7 @@ import sys, os, datetime, time, platform, subprocess, json
 import math
 import atexit
 from types import SimpleNamespace
-from bottle import Bottle, request, response, template, static_file, redirect, abort, Response
+from bottle import Bottle, request, response, template, static_file, redirect, abort, Response, url
 import signal
 
 import fire, psutil
@@ -16,11 +16,11 @@ import tracemalloc
 tracemalloc.start()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 app = Bottle()
 
-config_dir = 'services/'
+config_dir = (Path(script_dir) / 'services').as_posix() + '/'
+log_dir = (Path(script_dir) / 'logs').as_posix() + '/'
 services = {}
 
 
@@ -52,7 +52,7 @@ def load_services():
             and (name := os.path.splitext(os.path.basename(filename))[0])
         )
     ]
-    # print(f"Found {len(configs)} service configurations.\n\n")
+    print(f"Found {len(configs)} service configurations.\n\n")
     for config in configs:
         start_config(file_path=config["file_path"], name=config["name"])
 
@@ -113,10 +113,10 @@ class Service:
         if self.process and self.process.poll() is None:
             raise RuntimeError(f"Service '{self.name}' is already running")
 
-        if not os.path.exists('logs/'):
-            os.makedirs('logs/')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         try:
-            self.log_file = open(f'logs/{self.name}.log', 'ab')
+            self.log_file = open(f'{log_dir}{self.name}.log', 'ab')
             cmd_splits = split_with_quotes(self.cmd, sep=' ')
             # print(f"Starting service {self.name} with command:", cmd_splits, "in cwd:", self.cwd)
             self.process = subprocess.Popen(
@@ -135,7 +135,7 @@ class Service:
 
     def stop(self):
         if not (self.process and self.process.poll() is None):
-            return 'not running'
+            return self.name + ' not running'
 
         try:
             # 终止进程
@@ -180,26 +180,36 @@ class Service:
 
 @app.route('/')
 def index():
-    return template('services.html', services=services)
+    return template((Path(script_dir) / 'services.html').as_posix(), services=services)    
 
 @app.route('/test_start', method=['GET', 'POST'])
 def test_start():
     cmd = request.query.cmd or ''
     cwd = request.query.cwd or Path(os.path.expanduser('~')).as_posix() or os.getcwd()
-    
+    print('Test start command:', cmd, 'in cwd:', cwd)
     # 创建临时配置文件
-    config = os.path.join('services/', 'test.json')
+    config = os.path.join(config_dir, 'test.json')
+#     with open(config, 'w', encoding='utf-8') as f:
+#         f.write('''\
+# {
+#     "cmd": "''' + cmd + '''",
+#     "cwd": "''' + cwd + '''",
+#     "env": {},
+#     "is_enabled": 1
+# }''')
+
+    data = {
+        "cmd": cmd,
+        "cwd": cwd,
+        "env": {},
+        "is_enabled": 1
+    }
     with open(config, 'w', encoding='utf-8') as f:
-        f.write('''\
-{
-    "cmd": "''' + cmd + '''",
-    "cwd": "''' + cwd + '''",
-    "env": {},
-    "is_enabled": 1
-}''')
+        json.dump(data, f, indent=4)
+
     start_config(config, 'test')
-    redirect('/log_view?name=test.json')
-    
+    # redirect('/log_view?name=test.json')
+    redirect(app.get_url('log_view') + '?name=test.json')
 
 @app.route('/start')
 def start():
@@ -214,7 +224,7 @@ def start():
             msg = f"{service.name} Started with pid: {str(pid)}"
         except RuntimeError as e:
             msg = f"{service.name} Service failed: {str(e)}"
-        out += msg + '\n'
+        out += msg + '\n\n'
         out = out[:-1] if out.endswith('\n') else out
     print(out)
     return out
@@ -248,7 +258,7 @@ def restart():
 def update():
     name = request.query.name
 
-    config = os.path.join('services/', name)
+    config = os.path.join(config_dir, name)
     if not os.path.isfile(config):
         with open(config, 'w', encoding='utf-8') as f: # 不存在时创建空的配置文件
             f.write('''\
@@ -285,7 +295,7 @@ try { this.value = JSON.stringify(JSON.parse(this.value), null, 4) } catch (erro
 
 @app.route('/delete')
 def delete():
-    config = os.path.join('services/', request.query.name)
+    config = os.path.join(config_dir, request.query.name)
     if not os.path.isfile(config):
         abort(404)
     name = os.path.splitext(os.path.basename(config))[0]
@@ -303,16 +313,16 @@ def delete():
 
 @app.route('/log')
 def log():
-    config = os.path.join('services/', request.query.name)
+    config = os.path.join(config_dir, request.query.name)
     if not os.path.isfile(config): # 必须是配置文件目录下的文件
         abort(404)
     name = os.path.splitext(os.path.basename(config))[0]
     offset = int(request.query.offset or 0)
     
-    if not os.path.isfile(f'logs/{name}.log'):
+    if not os.path.isfile(f'{log_dir}{name}.log'):
         abort(404)
 
-    with open(f'logs/{name}.log', 'rb') as f:
+    with open(f'{log_dir}{name}.log', 'rb') as f:
         f.seek(offset)
         data = f.read()
         
@@ -320,7 +330,7 @@ def log():
     response.headers['X-Next-Offset'] = str(offset + len(data))  # 客户端下次从这里开始读
     return data.decode(encoding=locale.getpreferredencoding(False), errors='ignore')
 
-@app.route('/log_view')
+@app.route('/log_view', name='log_view')
 def log_view():
     return '''
         <html>
@@ -337,7 +347,9 @@ def log_view():
 
         async function fetchLog() {
             try {
-                const res = await fetch(`/log?name=${name}&offset=${offset}`);
+                baseUrl = '/' + window.location.pathname.replace(/\/+$/, '').split('/').slice(1, -1).join('/');
+                if (baseUrl=='/') baseUrl = '';
+                const res = await fetch(`${baseUrl}/log?name=${name}&offset=${offset}`);
                 const text = await res.text();
                 if (text) {
                     logElem.textContent += text;
@@ -358,16 +370,16 @@ def log_view():
 
 @app.route('/clear_log')
 def clear_log():
-    config = os.path.join('services/', request.query.name)
+    config = os.path.join(config_dir, request.query.name)
     if not os.path.isfile(config): # 必须是配置文件目录下的文件
         abort(404)
     name = os.path.splitext(os.path.basename(config))[0]
-    if not os.path.isfile(f'logs/{name}.log'):
+    if not os.path.isfile(f'{log_dir}{name}.log'):
         return '日志文件不存在'
 
     try:
-        # os.remove(f'logs/{name}.log')
-        with open(f'logs/{name}.log', 'w') as f: # 直接覆盖写入空内容
+        # os.remove(f'{log_dir}{name}.log')
+        with open(f'{log_dir}{name}.log', 'w') as f: # 直接覆盖写入空内容
             pass  # 或 f.truncate(0)
     except OSError as e:
         return '你需要先停止服务:\n' + str(e)
@@ -400,7 +412,7 @@ def find_process():
         'create_time': datetime.datetime.fromtimestamp(p.create_time()).strftime("%Y-%m-%d %H:%M:%S"),
         'memory_percent': format_bytes(psutil.virtual_memory().total * 0.01 * p.memory_percent()),
     }), psutil_processes))
-    return template('processes.html', processes=processes)
+    return template((Path(script_dir) / 'processes.html').as_posix(), processes=processes)
 
 @app.route('/terminate_process')
 def terminate_process():
@@ -417,8 +429,9 @@ def on_exit():
         print(f"Stopping service {i+1}/{len(services)}: {service.name}")
         service.stop()
 
+load_services()
+
 if __name__ == "__main__":
-    load_services()
     
     import argparse
     parser = argparse.ArgumentParser(description='Run the development server.')
