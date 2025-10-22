@@ -160,13 +160,13 @@
                     continue;
                 }
                 const paramValue = textareas[i].value;
-                if (paramValue.includes('/')) {
+                if (paramValue.includes('/') || paramValue.includes('\\')) {
                     paramStr += '/"' + (isEncode ? encodeURIComponent(paramValue) : paramValue) + '"';
                 } else {
                     paramStr += '/' + (isEncode ? encodeURIComponent(paramValue) : paramValue);
                 }
             }
-            if (param0Str.includes('/')) { // 命令名称/路径不带参数时不自动加双引号
+            if (param0Str.includes('/') || param0Str.includes('\\')) { // 命令名称/路径不带参数时不自动加双引号
                 if((textareas.length == 1 && textareas[0].value) || textareas.length > 1) {
                     param0Str = '"' + param0Str + '"';
                 }

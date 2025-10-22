@@ -123,15 +123,16 @@ def handle_request(path=None):
         pass
     return response
 
-def split_with_quotes1(string, sep='/'):
+def split_with_quotes1(s, sep='/'):
     '''
     Split a string by a separator, but keep quoted substrings together.
     Example:
     split_with_quotes('cmd "arg with spaces" arg2', sep=' ')
     ['cmd', '"arg with spaces"', 'arg2']
     '''
-    parts = re.findall(r'(?:".*?"|[^' + sep + r'"]+)', string)
-    return [part.strip('"') for part in parts]
+    if sep not in s:
+        return [s]
+    return [part.strip('"') for part in re.findall(r'(?:".*?"|[^' + sep + r'"]+)', s)]
 
 
 def split_with_quotes(s: str, sep: str = '/', keep_quotes: bool = False,
