@@ -14,7 +14,10 @@ print('main.py Current working directory:', os.getcwd())
 app = Bottle()
 
 def echo():
-    body = request.body.read().decode("utf-8") if request.body else ''
+    try:
+        body = request.body.read().decode("utf-8") if request.body else ''
+    except Exception as e: # body可能是二进制数据
+        body = str(e)
     request_line = f'{request.method} {request.path}{(request.query_string or "") and "?" + request.query_string} {request.environ.get("SERVER_PROTOCOL")}'
     headers = '\n'.join([f'{key}: {value}' for key, value in sorted(request.headers.items())])
 
