@@ -32,6 +32,20 @@
 
     <script>
         // JavaScript 代码
+
+       function getBaseUrl() {
+    let { protocol, host, pathname } = window.location;
+    // pathname 未以/结尾时加上/
+    if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
+    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    return `${host}${path}`;
+  }
+  const BASE_URL = getBaseUrl();
+  console.log("BASE_URL:", BASE_URL);
+
+
         function connectWebSocket(url, elementId) {
             const socket = new WebSocket(url);
 
@@ -112,7 +126,7 @@
         const urls = urlsString ? urlsString.split(',') : [];
 
         if(urls.length==0){
-            createServerInfoDiv('ws://' + location.host + '/ws/', 'server-info-1');
+            createServerInfoDiv('ws://' + BASE_URL + 'ws/', 'server-info-1');
         }
         else
         {
@@ -166,6 +180,8 @@
             return formatBytes(bytesDiff);
         }
 
+
+ 
     </script>
 </body>
 

@@ -105,7 +105,7 @@ def handle_websocket():
 @app.route('/')
 @app.route('/index.html')
 def index():
-    return static_file('index.html', root='.')
+    return static_file('index.html', root=script_dir, mimetype='text/html')
 
 def main():
     import argparse

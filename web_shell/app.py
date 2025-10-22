@@ -121,7 +121,7 @@ def split_with_quotes1(s, sep='/'):
 
 
 def split_with_quotes(s: str, sep: str = '/', keep_quotes: bool = False,
-                      trim: bool = True, allow_empty: bool = False) -> List[str]:
+                      trim: bool = True, allow_empty: bool = True) -> List[str]:
     """
     Split a string by a separator `sep`, but keep quoted substrings together.
 
