@@ -56,19 +56,6 @@ def requires_auth(f):
         return response
     return wrapper
 
-
-def echo():
-    body_bytes = request.environ['wsgi.input'].read()
-    request.environ['wsgi.input'] = io.BytesIO(body_bytes)  # 重置流
-    body = body_bytes.decode("utf-8")
-
-    request_line = f'{request.method} {request.path}{(request.query_string or "") and "?" + request.query_string} {request.environ.get("SERVER_PROTOCOL")}'
-    headers = '\n'.join([f'{key}: {value}' for key, value in sorted(request.headers.items())])
-
-    print(f'\n\n\n{request_line}\n{headers}\n\n{body}')
-
-app.add_hook('before_request', echo)
-
 @app.route('/', method='GET')
 # @app.route('/<path:re:.*>')
 @app.route('/<path:path>')
@@ -112,15 +99,14 @@ def handle_request(path=None):
     if capture_output:
         response.headers['Content-Type'] = 'text/plain; charset=UTF-8'
         response.content_type = 'text/plain; charset=UTF-8'
-        response.body = output
-
-        logging.info('\n' + response.body)
+        
+        logging.info('\n' + output)
 
     try: # 终止子进程
         completed_process.check_returncode()
     except subprocess.CalledProcessError as e:
         pass
-    return response
+    return output
 
 def split_with_quotes1(s, sep='/'):
     '''

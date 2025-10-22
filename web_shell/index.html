@@ -18,8 +18,8 @@
     <input type="text" id="cwd" placeholder="cwd">
     <hr/>
     <label><input id="uriComponentEncoding" type="checkbox">URI Component Encoding</label><br/>
-    <input type="submit" value="Query Mode" title="" onclick="q = prompt('Please confirm the jump target:', location.origin + location.pathname + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
-    <input type="submit" value="Path Mode" title="" onclick="q = prompt('Please confirm the jump target:', location.origin + location.pathname + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
+    <input type="submit" value="Query Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
+    <input type="submit" value="Path Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
     <div style="display: block; margin: 1rem 0;">
         <input type="text" list="optionList" id="0" placeholder="0">
         <datalist id="optionList">
@@ -198,6 +198,18 @@
             }
             return elements;
         }
+
+        function getBaseUrl() {
+    let { protocol, host, pathname } = window.location;
+    // pathname 未以/结尾时加上/
+    if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
+    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    return `${protocol}//${host}${path}`;
+  }
+  const BASE_URL = getBaseUrl();
+  console.log("BASE_URL:", BASE_URL);
 </script>
 </body>
 </html>

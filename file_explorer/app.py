@@ -27,18 +27,6 @@ def has_hidden_attribute(filepath): # Windows-specific hidden file check
 
 app = Bottle()
 
-def echo():
-    body_bytes = request.environ['wsgi.input'].read()
-    request.environ['wsgi.input'] = io.BytesIO(body_bytes)  # 重置流
-    body = body_bytes.decode("utf-8")
-
-    request_line = f'{request.method} {request.path}{(request.query_string or "") and "?" + request.query_string} {request.environ.get("SERVER_PROTOCOL")}'
-    headers = '\n'.join([f'{key}: {value}' for key, value in sorted(request.headers.items())])
-
-    print(f'\n\n\n{request_line}\n{headers}\n\n{body}')
-
-app.add_hook('before_request', echo)
-
 @app.route('/')
 def index():
     return static_file('index.html', root=script_dir, mimetype='text/html')
