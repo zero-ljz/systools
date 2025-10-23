@@ -10,7 +10,7 @@
 <body>
     <div class="container">
         <h2>
-            进程列表
+            Process List
         </h2>
         <section style="overflow: auto; white-space: nowrap;">
 <button onclick=" 
@@ -22,23 +22,23 @@ if (!confirm('已选择 ' + pids.length + ' 项，' + '你确定吗？')) return
 fetch('terminate_process?pid=' + encodeURIComponent(pids.join(',')))
 .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
 })();
-void(0);" style="color: red;">终止所选</button>
+void(0);" style="color: red;">Terminate selected</button>
 <hr style="margin:3px 0; border:0;">
         <table class="table table-striped" border="1" cellspacing="0" style="width: 100%;">
             <thead>
                 <tr>
                     <th><input type="checkbox" onclick="document.querySelectorAll(`table > tbody tr td input[type='checkbox']`).forEach(checkbox => checkbox.checked = this.checked);"></th>
                     <th>PID</th>
-                    <th>名称</th>
-                    <th>命令行</th>
-                    <th>工作目录</th>
-                    <th>状态</th>
-                    <th>线程数量</th>
-                    <th>可执行文件</th>
-                    <th>用户名</th>
-                    <th>创建时间</th>
-                    <th>内存占用</th>
-                    <th>操作</th>
+                    <th>Name</th>
+                    <th>Command Line</th>
+                    <th>Working Directory</th>
+                    <th>Status</th>
+                    <th>Number of Threads</th>
+                    <th>Executable File</th>
+                    <th>Username</th>
+                    <th>Created At</th>
+                    <th>RAM Usage</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -67,14 +67,14 @@ void(0);" style="color: red;">终止所选</button>
                         (() => {
                             fetch('terminate_process?pid=' + encodeURIComponent('{{ process.pid }}'))
                             .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); }); })();
-                        void(0);" style="color: red;">终止</button>
+                        void(0);" style="color: red;">Terminate</button>
                     </td>
 
                 </tr>
                 % end
             </tbody>
         </table>
-        共 {{ len(processes) }} 条记录
+        Total: {{ len(processes) }} record
         </section>
     </div>
 

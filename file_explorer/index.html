@@ -91,9 +91,9 @@
 
     <div style="">
       <button @click="prevPage" :disabled="page <= 1">Previous</button>
-      <span>page {{ page }} / {{ totalPages }} (total {{ total }} )</span>
+      <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
       <button @click="nextPage" :disabled="page >= totalPages">Next</button>
-      <label>per page</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
+      <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
     </div>
 
     <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
