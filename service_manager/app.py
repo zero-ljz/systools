@@ -189,15 +189,6 @@ def test_start():
     print('Test start command:', cmd, 'in cwd:', cwd)
     # 创建临时配置文件
     config = os.path.join(config_dir, 'test.json')
-#     with open(config, 'w', encoding='utf-8') as f:
-#         f.write('''\
-# {
-#     "cmd": "''' + cmd + '''",
-#     "cwd": "''' + cwd + '''",
-#     "env": {},
-#     "is_enabled": 1
-# }''')
-
     data = {
         "cmd": cmd,
         "cwd": cwd,
@@ -257,6 +248,8 @@ def restart():
 @app.route('/update', method=['GET', 'POST'])
 def update():
     name = request.query.name
+    if not name.endswith('.json'):
+        abort(400, 'Invalid service name')
 
     config = os.path.join(config_dir, name)
     if not os.path.isfile(config):
