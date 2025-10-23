@@ -131,7 +131,7 @@
           <td>{{ formatDateTime(file.modified_at) }}</td>
           <td>{{ formatDateTime(file.created_at) }}</td>
           <td>
-            <button @click="copyPath(file.path)">Copy Path</button>
+            <button @click="copyText(file.path)">Copy Path</button>
             <button @click="renameFile(file.path)">Rename</button>
             <button @click="deleteFile(file.path)">delete</button>
             <button @click="copyFile(file.path)">copy</button>
@@ -290,17 +290,20 @@
         );
       },
       methods: {
-        async copyPath(path) {
-          try {
-            await navigator.clipboard.writeText(path);
-            console.log(`路径已复制: ${path}`);
-            // 可选：显示提示
-            this.$toast?.success?.('路径已复制') || alert('路径已复制');
-          } catch (err) {
-            console.error('复制失败:', err);
-            this.$toast?.error?.('复制失败') || alert('复制失败');
-          }
-        },
+         copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text);
+    alert('已复制到剪贴板: ' + text)
+  } else {
+    const t = document.createElement('textarea');
+    t.value = text;
+    document.body.appendChild(t);
+    t.select();
+    document.execCommand('copy');
+    alert('已复制到剪贴板: ' + text)
+    document.body.removeChild(t);
+  }
+},
         goToDirectory(path) {
           this.$router.push(`/directory/${path}`);
         },
