@@ -45,6 +45,7 @@
     
 
     <hr />
+    <section style="overflow: auto; white-space: nowrap;">
     <ul style="list-style: none; margin: 0; padding: 0; display: flex;">
       Disks: &nbsp;<li style="margin-right: 10px;" v-for="disk in disks" :key="disk.device">
         <router-link v-if="disk.mountpoint" :to="`/directory/${disk.mountpoint}`">{{ disk.device }}</router-link>
@@ -98,35 +99,35 @@
     <hr style="margin:2px 0; border:0;">
 
     
-    <table border="1" cellSpacing="0" style="width: 100%;">
+    <table class="table table-striped" border="1" cellSpacing="0" style="width: 100%;">
       <thead>
         <tr style="background-color: lightgray; text-align: left;">
-          <th><input type="checkbox" v-model="selectAll" @change="toggleSelectAll"></th>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Size</th>
-          <th>Modified At</th>
-          <th>Created At</th>
-          <th>Actions</th>
+          <th style="padding: 5px;"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll"></th>
+          <th style="padding: 5px;">Name</th>
+          <th style="padding: 5px;">Type</th>
+          <th style="padding: 5px;">Size</th>
+          <th style="padding: 5px;">Modified At</th>
+          <th style="padding: 5px;">Created At</th>
+          <th style="padding: 5px;">Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="file in files" :key="file.name">
-          <td>
+          <td style="padding: 5px;">
             <input type="checkbox" v-model="file.selected">
           </td>
-          <td>
+          <td style="padding: 5px;">
             <a v-if="!file.is_directory" @click="handleFileClick(file)" :value="file.path">{{ file.name }}</a>
             <router-link v-if="file.is_directory" :to="`/directory/${file.path}`">{{ file.name }}</router-link>
           </td>
-          <td>
+          <td style="padding: 5px;">
             <span v-if="file.is_directory">Directory</span>
             <span v-else>File</span>
           </td>
-          <td><span v-if="!file.is_directory">{{ formattedSize(file.size) }}</span></td>
-          <td>{{ formatDateTime(file.modified_at) }}</td>
-          <td>{{ formatDateTime(file.created_at) }}</td>
-          <td>
+          <td style="padding: 5px;"><span v-if="!file.is_directory">{{ formattedSize(file.size) }}</span></td>
+          <td style="padding: 5px;">{{ formatDateTime(file.modified_at) }}</td>
+          <td style="padding: 5px;">{{ formatDateTime(file.created_at) }}</td>
+          <td style="padding: 5px;">
             <button @click="copyText(file.path)">Copy Path</button>
             <button @click="renameFile(file.path)">Rename</button>
             <button @click="deleteFile(file.path)">delete</button>
@@ -146,6 +147,7 @@
       <button @click="nextPage" :disabled="page >= totalPages">Next</button>&nbsp;&nbsp;
       <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
     </div>
+    </section>
 
     <div>
       <input type="text" readonly id="selectedFilePath" v-model="selectedFilePath" placeholder="Selected File Path">

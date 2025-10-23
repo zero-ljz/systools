@@ -50,21 +50,21 @@
         <hr style="margin:3px 0; border:0;">
         <table class="table table-striped" border="1" cellspacing="0" style="width: 100%;">
             <thead>
-                <tr>
-                    <th><input type="checkbox" onclick="document.querySelectorAll(`table > tbody tr td input[type='checkbox']`).forEach(checkbox => checkbox.checked = this.checked);"></th>
-                    <th>Name</th>
-                    <th>Command</th>
-                    <th>Working Directory</th>
-                    <th>Is Enable</th>
-                    <th>Process Status</th>
-                    <th>Actions</th>
-                    <th>Run Log</th>
+                <tr style="background-color: lightgray; text-align: left;">
+                    <th style="padding: 5px;"><input type="checkbox" onclick="document.querySelectorAll(`table > tbody tr td input[type='checkbox']`).forEach(checkbox => checkbox.checked = this.checked);"></th>
+                    <th style="padding: 5px;">Name</th>
+                    <th style="padding: 5px;">Command</th>
+                    <th style="padding: 5px;">Working Directory</th>
+                    <th style="padding: 5px;">Is Enable</th>
+                    <th style="padding: 5px;">Process Status</th>
+                    <th style="padding: 5px;">Actions</th>
+                    <th style="padding: 5px;">Run Log</th>
                 </tr>
             </thead>
             <tbody>
             % for i, (name, service) in enumerate(services.items()):
                 <tr>
-                    <td><input type="checkbox" value="{{ service.name }}"></td>
+                    <td style="padding: 5px;"><input type="checkbox" value="{{ service.name }}"></td>
                     <td style="padding: 5px;"><a onclick="location.href=BASE_URL + `{{ 'update?name=' + service.name + '.json' }}`; return false;" href="#">{{ service.name }}</a></td>
                     <td><textarea name="cmd" cols="40" rows="3" style="border: none; outline: none;" readonly>{{ service.cmd }}</textarea></td>
                     <td style="padding: 5px;">{{ service.cwd }}</td>
