@@ -82,6 +82,8 @@ def get_file_list():
     directory = request.query.directory or "/"
     directory_path = os.path.abspath(directory)
     show_hidden = request.query.show_hidden in ["1", "true", "True", "on", "yes"]
+    
+    print("directory:", directory)
 
     # --- 分页参数 ---
     page = int(request.query.page or 1)
@@ -110,8 +112,10 @@ def get_file_list():
             continue
         if file_type == "dir" and not is_dir:
             continue
-
-        stat = os.stat(file_path)
+        try:
+            stat = os.stat(file_path)
+        except FileNotFoundError: # 解决访问不了//wsl.localhost/Ubuntu
+            continue
         file_info = {
             "name": name,
             "path": file_path,
