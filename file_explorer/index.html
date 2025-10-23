@@ -554,7 +554,7 @@
           window.location.href = `${BASE_URL}files/download/${encodeURIComponent(filename)}`;
         },
         previewFile(filename) {
-          window.location.href = `${BASE_URL}files/preview/${encodeURIComponent(filename)}`;
+          window.location.href = `${BASE_URL}files/preview/${filename}`;
         },
         handleFileClick(file) {
           if (file.is_directory) {

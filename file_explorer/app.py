@@ -7,7 +7,7 @@ import urllib.request
 import zipfile
 import subprocess
 import mimetypes
-from urllib.parse import unquote, unquote_plus
+from urllib.parse import quote, unquote, unquote_plus
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -299,16 +299,37 @@ def upload_remote_file():
 
 
 # 下载文件
-@app.get("/files/download/<filename:path>")
+@app.get('/files/download/<filename:path>')
 def download_file(filename):
     file_path = os.path.abspath(unquote(filename))
     filename = os.path.basename(file_path)
-    directory = os.path.dirname(file_path)
-    if os.path.exists(file_path):
-        return static_file(filename, root=directory, download=filename)
-    else:
+
+    # 检查文件是否存在
+    if not os.path.isfile(file_path):
         response.status = 404
-        return {"error": "File not found."}
+        return {'error': 'File not found'}
+
+    # 识别 MIME 类型
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = 'application/octet-stream'
+
+    # 设置下载响应头
+    response.content_type = mime_type
+    response.set_header('Content-Disposition', f'attachment; filename="{quote(filename)}"')
+    response.set_header('Content-Length', os.path.getsize(file_path))
+
+    # 以流的方式读取文件内容（避免大文件一次性加载内存）
+    def file_iterator(path, chunk_size=8192):
+        with open(path, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+
+    return file_iterator(file_path)
+
 
 @app.get('/files/preview/<filename:path>')
 def preview_file(filename):
@@ -327,7 +348,7 @@ def preview_file(filename):
 
     # 设置响应头以支持预览
     response.content_type = mime_type
-    response.set_header('Content-Disposition', f'inline; filename="{filename}"')
+    response.set_header('Content-Disposition', f'inline; filename="{quote(filename)}"')
 
     # 读取并返回文件内容
     with open(file_path, 'rb') as f:
