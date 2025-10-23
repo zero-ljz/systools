@@ -12,12 +12,12 @@
 <p>
 
 <form id="form1" onsubmit="return saveFormData();">
-        <input type="checkbox" id="shell"><label for="shell" title="用本程序启动时的Shell执行">shell</label> &nbsp;
-        <input type="checkbox" id="capture_output" checked><label for="capture_output">capture_output</label> &nbsp;
+        <input type="checkbox" id="shell"><label for="shell" title="用本程序启动时的Shell执行">Shell</label> &nbsp;
+        <input type="checkbox" id="capture_output" checked><label for="capture_output">Capture Output</label> &nbsp;
     <hr style="margin:5px 0; border:0;">
     <input type="text" id="cwd" placeholder="cwd">
     <hr/>
-    <label><input id="uriComponentEncoding" type="checkbox">URI Component Encoding</label><br/>
+    <label><input id="uriComponentEncoding" type="checkbox">Encoding</label><br/>
     <input type="submit" value="Query Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
     <input type="submit" value="Path Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
     <div style="display: block; margin: 1rem 0;">

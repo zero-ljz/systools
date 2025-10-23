@@ -385,6 +385,23 @@ def clear_log():
         return '你需要先停止服务:\n' + str(e)
     return 'OK'
 
+def safe_process_info(p):
+    try:
+        return SimpleNamespace(**{
+            'pid': p.pid,
+            'name': p.name(),
+            'cmdline': p.cmdline(),
+            'cwd': p.cwd(),
+            'status': p.status(),
+            'num_threads': p.num_threads(),
+            'exe': p.exe(),
+            'username': p.username(),
+            'create_time': datetime.datetime.fromtimestamp(p.create_time()).strftime("%Y-%m-%d %H:%M:%S"),
+            'memory_percent': format_bytes(psutil.virtual_memory().total * 0.01 * p.memory_percent()),
+        })
+    except (psutil.AccessDenied, psutil.ZombieProcess, psutil.NoSuchProcess):
+        return None
+
 @app.route('/find_process')
 def find_process():
     cmd = request.query.cmd_line
@@ -400,18 +417,7 @@ def find_process():
             psutil_processes.append(psutil.Process(pid))
         except psutil.NoSuchProcess:
             pass
-    processes = list(map(lambda p: SimpleNamespace(**{
-        'pid': p.pid,
-        'name': p.name(),
-        'cmdline': p.cmdline(),
-        'cwd': p.cwd(),
-        'status': p.status(),
-        'num_threads': p.num_threads(),
-        'exe': p.exe(),
-        'username': p.username(),
-        'create_time': datetime.datetime.fromtimestamp(p.create_time()).strftime("%Y-%m-%d %H:%M:%S"),
-        'memory_percent': format_bytes(psutil.virtual_memory().total * 0.01 * p.memory_percent()),
-    }), psutil_processes))
+    processes = list(filter(None, map(safe_process_info, psutil_processes)))
     return template((Path(script_dir) / 'processes.html').as_posix(), processes=processes)
 
 @app.route('/terminate_process')

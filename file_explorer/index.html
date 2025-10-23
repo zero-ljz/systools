@@ -14,13 +14,7 @@
 
 <body>
   <div id="app">
-    <h1>File Manager</h1>
-    <div>
-      <label for="directory">Current Directory: </label>
-      <input type="text" id="directory" v-model="currentDirectory">
-      <button @click="goToDirectory(currentDirectory)">Go To Directory</button>
-    </div>
-    <br />
+    <h1>File Manager</h1>    
     <div>
       <input type="text" id="newDirectory" placeholder="New Directory Name" v-model="newDirectoryName">
       <button @click="createDirectory">Create Directory</button>
@@ -29,16 +23,17 @@
       <input type="text" id="newFile" placeholder="New File Name" v-model="newFileName">
       <button @click="createFile">Create File</button>
     </div>
+    <hr style="margin:5px 0; border:0;">
 
     <div>
       <input type="file" ref="fileInput" multiple @change="handleFileChange">
       <button @click="uploadFiles">Upload Local File</button>
-    </div>
-    <div>
+    <br/>
       <input type="text" placeholder="URL" v-model="remoteURL">
       <button @click="uploadRemoteFile">Upload Remote File</button>
     </div>
-    <br />
+    <hr style="margin:5px 0; border:0;">
+ 
     <div>
       <input type="text" v-model="zipFilename">
       <button @click="packFiles">Pack Selected Files</button>
@@ -47,32 +42,17 @@
       <input type="text" id="unpackFilename" placeholder="ZIP File to Unpack" v-model="unpackFilename">
       <button @click="unpackFiles">Unpack Files</button>
     </div>
-    <br />
-    <div>
-      <input type="text" readonly id="selectedFilePath" v-model="selectedFilePath" placeholder="Selected File Path">
-    </div>
+    
 
     <hr />
-
-    Disks: <ul style="list-style: none; margin: 0; padding: 0; display: flex;">
-      <li style="margin-right: 10px;" v-for="disk in disks" :key="disk.device">
+    <ul style="list-style: none; margin: 0; padding: 0; display: flex;">
+      Disks: &nbsp;<li style="margin-right: 10px;" v-for="disk in disks" :key="disk.device">
         <router-link v-if="disk.mountpoint" :to="`/directory/${disk.mountpoint}`">{{ disk.device }}</router-link>
       </li>
     </ul>
 
     <div>
-      Filter:
-      <input type="text" v-model="keyword" placeholder="Search Name..." @keyup.enter="getFileList()">
-
-      <select v-model="fileType" @change="getFileList()">
-        <option value="">All</option>
-        <option value="file">File Only</option>
-        <option value="dir">Dir Only</option>
-      </select>
-
-      <label><input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">Show Hidden Items</label>
-
-      <br />SortBy:
+     SortBy:
       <select v-model="sortBy" @change="getFileList()">
         <option value="name">Name</option>
         <option value="size">Size</option>
@@ -85,25 +65,39 @@
         <option value="desc">Desc</option>
       </select>
 
+      <br />
+      <input type="text" v-model="keyword" placeholder="Search Name..." @keyup.enter="getFileList()">
 
+      <select v-model="fileType" @change="getFileList()">
+        <option value="">All</option>
+        <option value="file">File Only</option>
+        <option value="dir">Dir Only</option>
+      </select>
+      <label><input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">Hidden</label>
+
+      
     </div>
 
-    <div>
-      <button @click="prevPage" :disabled="page <= 1">Previous</button>
-      <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
-      <button @click="nextPage" :disabled="page >= totalPages">Next</button>
-      <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
-    </div>
-
-    <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
+    
     <nav id="breadcrumb"></nav>
     <!-- <router-view></router-view> -->
-     <div>
-      <button style="color: red;" @click="deleteSelected">Delete Selected</button>
+     <div style="display: flex;">
+      <span>
+      <button onclick="history.back()">←</button> <button onclick="history.forward()">→</button>
+      <button @click="goToParentDirectory">../</button>
+      <input type="text" id="directory" v-model="currentDirectory">
+      <button @click="goToDirectory(currentDirectory)">Go</button>
+      </span>
+
+      <span style="flex-grow: 1; text-align: right;">
       <button @click="copySelected">Copy Selected</button>
       <button style="color: orange;" @click="moveSelected">Move Selected</button>
+      <button style="color: red;" @click="deleteSelected">Delete Selected</button>
+      </span>
     </div>
-    <button @click="goToParentDirectory">../</button>
+    <hr style="margin:2px 0; border:0;">
+
+    
     <table border="1" cellSpacing="0" style="width: 100%;">
       <thead>
         <tr style="background-color: lightgray; text-align: left;">
@@ -146,6 +140,16 @@
       </tbody>
     </table>
 
+    <div>
+      <button @click="prevPage" :disabled="page <= 1">Previous</button>
+      <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
+      <button @click="nextPage" :disabled="page >= totalPages">Next</button>&nbsp;&nbsp;
+      <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
+    </div>
+
+    <div>
+      <input type="text" readonly id="selectedFilePath" v-model="selectedFilePath" placeholder="Selected File Path">
+    </div>
 
     <!-- 编辑文件内容对话框 -->
     <div v-if="showEditDialog">
@@ -469,6 +473,10 @@
 
         deleteSelected() {
           const selectedFiles = this.getSelectedFiles();
+          if (selectedFiles.length === 0) {
+            alert('No files/directories selected.');
+            return;
+          }
           // 询问用户确认删除
           if (!confirm('Are you sure you want to delete the ' + selectedFiles.length + ' selected files/directories?')) {
             return;
@@ -486,9 +494,14 @@
         },
         copySelected() {
           // 批量复制选中的文件/目录
+          const selectedFiles = this.getSelectedFiles();
+          if (selectedFiles.length === 0) {
+            alert('No files/directories selected.');
+            return;
+          }
           const destination = prompt('Enter destination path:');
           if (destination) {
-            axios.post(`${BASE_URL}files/copy`, { files: this.getSelectedFiles(), destination: destination })
+            axios.post(`${BASE_URL}files/copy`, { files: selectedFiles, destination: destination })
               .then(response => {
                 console.log(response.data.message);
                 // 刷新文件列表
@@ -501,9 +514,14 @@
         },
         moveSelected() {
           // 批量移动选中的文件/目录
+          const selectedFiles = this.getSelectedFiles();
+          if (selectedFiles.length === 0) {
+            alert('No files/directories selected.');
+            return;
+          }
           const destination = prompt('Enter destination path:');
           if (destination) {
-            axios.post(`${BASE_URL}files/move`, { files: this.getSelectedFiles(), destination: destination })
+            axios.post(`${BASE_URL}files/move`, { files: selectedFiles, destination: destination })
               .then(response => {
                 console.log(response.data.message);
                 // 刷新文件列表
@@ -540,6 +558,7 @@
             .then((response) => response.json())
             .then((data) => {
               console.log(data.message);
+              alert(data.message);
               // 文件编辑成功，刷新文件列表
               this.getFileList();
               this.cancelEdit();
