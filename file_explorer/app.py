@@ -393,6 +393,10 @@ def preview_file(filename):
     if not mime_type:
         mime_type = 'application/octet-stream'  # 默认类型
 
+    # 如果是文本类型，就强制加上 UTF-8 编码
+    if mime_type.startswith("text/"):
+        mime_type += "; charset=utf-8"
+
     # 设置响应头以支持预览
     response.content_type = mime_type
     response.set_header('Content-Disposition', f'inline; filename="{quote(filename)}"')
