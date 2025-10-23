@@ -10,6 +10,8 @@
   <script src="https://gcore.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <!--<script src="static/js/filemgr.js"></script>-->
   <link rel="icon" href="data:," />
+  <style>
+  </style>
 </head>
 
 <body>
@@ -17,7 +19,7 @@
     <h1>File Manager</h1>    
     <div>
       <input type="file" ref="fileInput" multiple @change="handleFileChange">
-      <button @click="uploadFiles">Upload Local File</button>
+      <button @click="uploadFiles">Upload Local Files</button>
     <br/>
       <input type="text" placeholder="URL" v-model="remoteURL">
       <button @click="uploadRemoteFile">Upload Remote File</button>
@@ -58,29 +60,42 @@
       </select>
 </span>
     </div>
+    <hr style="margin:1px 0; border:0;">
 
     
     <nav id="breadcrumb"></nav>
     <!-- <router-view></router-view> -->
-     <div style="display: flex;">
-      <span>
-      <button onclick="history.back()">←</button> <button onclick="history.forward()">→</button>
-      <button @click="goToParentDirectory">../</button>
-      <input type="text" id="directory" v-model="currentDirectory">
-      <button @click="goToDirectory(currentDirectory)">Go</button>
-      &nbsp;&nbsp;
-      <button @click="copySelected">Copy</button>
-      <button style="color: orange;" @click="moveSelected">Move</button>
-      <button style="color: red;" @click="deleteSelected">Delete</button>
-      <button @click="packSelected">Pack</button>
-      
-      </span>
+     <hr style="margin:2px 0; border:0;">
+     <div style="display: flex; align-items: center; width: 100%; gap: 6px;">
+  <!-- 左侧区域 -->
+  <div style="display: flex; align-items: center; flex: 1; gap: 6px;">
+    <button onclick="history.back()">←</button>
+    <button onclick="history.forward()">→</button>
+    <button @click="goToParentDirectory">../</button>&nbsp;&nbsp;
 
-      <span style="flex-grow: 1; text-align: right;">
-        <button @click="createFile">New File</button>
-        <button @click="createDirectory">New Folder</button>
-      </span>
-    </div>
+    
+    <button @click="copySelected">Copy</button>
+    <button style="color: orange;" @click="moveSelected">Move</button>
+    <button style="color: red;" @click="deleteSelected">Delete</button>
+    <button @click="packSelected">Pack</button>&nbsp;&nbsp;
+
+    <!-- 关键：flex: 1; 会让输入框自动填满剩余空间 -->
+    <input
+      type="text"
+      id="directory"
+      v-model="currentDirectory"
+      style="flex: 1; min-width: 100px; max-width: 800px;"
+    >
+    <button @click="goToDirectory(currentDirectory)">Go</button>&nbsp;&nbsp;
+  </div>
+
+  <!-- 右侧按钮区域 -->
+  <div style="text-align: right; white-space: nowrap;">
+    <button @click="createFile">New File</button>
+    <button @click="createDirectory">New Folder</button>
+  </div>
+</div>
+
     <hr style="margin:2px 0; border:0;">
 
     
