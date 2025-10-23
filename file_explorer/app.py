@@ -50,8 +50,8 @@ def get_disk_partitions(only_physical_devices=True):
     disks = []
 
     for p in partitions:
-        # 跳过不可访问的挂载点（例如空光驱）
-        if not os.path.exists(p.mountpoint):
+        # 跳过不可访问或不是目录的挂载点（例如空光驱）
+        if not os.path.exists(p.mountpoint) or not os.path.isdir(p.mountpoint):
             continue
 
         # 在 Linux 下可选过滤掉非物理设备
