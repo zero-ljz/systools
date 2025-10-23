@@ -3,6 +3,7 @@ import stat
 import io
 import platform
 import shutil
+import psutil
 import urllib.request
 import zipfile
 import subprocess
@@ -31,6 +32,48 @@ app = Bottle()
 def index():
     return static_file('index.html', root=script_dir, mimetype='text/html')
 
+def get_disk_partitions(only_physical_devices=True):
+    """
+    跨平台获取所有磁盘分区信息
+    返回列表，每个元素为字典，包含：
+    {
+        'device': 设备名 (Windows: C:\\, Linux: /dev/sda1),
+        'mountpoint': 挂载点 (Windows: C:\\, Linux: /),
+        'fstype': 文件系统类型 (NTFS/ext4 等),
+        'opts': 挂载选项
+    }
+    :param only_physical_devices: 是否只包含物理设备
+    :return: list[dict]
+    """
+    system = platform.system()
+    partitions = psutil.disk_partitions(all=not only_physical_devices)
+    disks = []
+
+    for p in partitions:
+        # 跳过不可访问的挂载点（例如空光驱）
+        if not os.path.exists(p.mountpoint):
+            continue
+
+        # 在 Linux 下可选过滤掉非物理设备
+        if system == "Linux" and not p.device.startswith("/dev/"):
+                continue
+
+        disks.append({
+            "device": p.device,
+            "mountpoint": p.mountpoint,
+            "fstype": p.fstype,
+            "opts": p.opts,
+        })
+    return disks
+
+# 获取磁盘分区列表
+@app.get("/disks")
+def list_disks():
+    """返回系统磁盘分区列表（JSON）"""
+    response.content_type = "application/json; charset=utf-8"
+    data = get_disk_partitions(only_physical_devices=False)
+    return {"disks": data}
+    
 
 # 获取文件列表
 @app.get("/files")

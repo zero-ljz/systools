@@ -54,14 +54,13 @@
 
     <hr />
 
-    <div>
-      <button style="color: red;" @click="deleteSelected">Delete Selected</button>
-      <button @click="copySelected">Copy Selected</button>
-      <button style="color: orange;" @click="moveSelected">Move Selected</button>
-    </div>
+    Disks: <ul style="list-style: none; margin: 0; padding: 0; display: flex;">
+      <li style="margin-right: 10px;" v-for="disk in disks" :key="disk.device">
+        <router-link v-if="disk.mountpoint" :to="`/directory/${disk.mountpoint}`">{{ disk.device }}</router-link>
+      </li>
+    </ul>
 
-    <br />
-    <div style="">
+    <div>
       Filter:
       <input type="text" v-model="keyword" placeholder="Search Name..." @keyup.enter="getFileList()">
 
@@ -89,7 +88,7 @@
 
     </div>
 
-    <div style="">
+    <div>
       <button @click="prevPage" :disabled="page <= 1">Previous</button>
       <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
       <button @click="nextPage" :disabled="page >= totalPages">Next</button>
@@ -99,9 +98,12 @@
     <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
     <nav id="breadcrumb"></nav>
     <!-- <router-view></router-view> -->
+     <div>
+      <button style="color: red;" @click="deleteSelected">Delete Selected</button>
+      <button @click="copySelected">Copy Selected</button>
+      <button style="color: orange;" @click="moveSelected">Move Selected</button>
+    </div>
     <button @click="goToParentDirectory">../</button>
-    
-
     <table border="1" cellSpacing="0" style="width: 100%;">
       <thead>
         <tr style="background-color: lightgray; text-align: left;">
@@ -242,6 +244,7 @@
         remoteURL: '',
         zipFilename: '',
         unpackFilename: '',
+        disks: [],
         files: [],
         selectAll: false, // 全选按钮的状态
         showEditDialog: false, // 是否显示编辑文件对话框
@@ -263,6 +266,8 @@
       },
       created() {
         console.log('初始化加载' + this.$route.params.directory);
+        
+        this.getDiskList(); // 获取磁盘列表
 
         this.getFileList(this.$route.params.directory); // 初始化加载文件列表
 
@@ -306,6 +311,16 @@
 },
         goToDirectory(path) {
           this.$router.push(`/directory/${path}`);
+        },
+        getDiskList() {
+          axios.get(`${BASE_URL}disks`)
+            .then(response => {
+              this.disks = response.data.disks;
+            })
+            .catch(error => {
+              console.error(error);
+              alert("获取磁盘列表失败");
+            });
         },
 
         getFileList(directory = this.currentDirectory) {
