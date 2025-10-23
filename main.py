@@ -1,6 +1,9 @@
 
 import os, io
+from traceback import format_exc
 from bottle import Bottle, request, response, template, static_file, redirect, abort
+import bottle
+from bottle import HTTPError
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
 
@@ -10,6 +13,57 @@ import service_manager.app as service_manager
 import sysinfo.app as sysinfo
 
 print('main.py Current working directory:', os.getcwd())
+
+# 对 Bottle 框架应用猴子补丁，修复在使用app.mount后URL 路径中的非 ASCII 字符处理问题(路径中出现中文报Invalid path string. Expected UTF-8)
+# 参考自：https://stackoverflow.com/questions/23168292/python-bottle-utf8-path-string-invalid-when-using-app-mount
+# ---- 1️⃣ 保留原版引用 ----
+_original_handle = bottle.Bottle._handle
+
+# ---- 2️⃣ 定义猴子补丁版本 ----
+def _patched_handle(self, environ):
+    converted = 'bottle.raw_path' in environ
+    path = environ['bottle.raw_path'] = environ['PATH_INFO']
+    if bottle.py3k and not converted:
+        try:
+            environ['PATH_INFO'] = path.encode('latin1').decode('utf8')
+        except UnicodeError:
+            return HTTPError(400, 'Invalid path string. Expected UTF-8')
+
+    # 调用原来的主体逻辑（去掉路径部分的重复逻辑）
+    try:
+        environ['bottle.app'] = self
+        bottle.request.bind(environ)
+        bottle.response.bind()
+
+        try:
+            self.trigger_hook('before_request')
+            route, args = self.router.match(environ)
+            environ['route.handle'] = route
+            environ['bottle.route'] = route
+            environ['route.url_args'] = args
+            return route.call(**args)
+        finally:
+            self.trigger_hook('after_request')
+
+    except bottle.HTTPResponse:
+        return bottle._e()
+    except bottle.RouteReset:
+        route.reset()
+        return self._handle(environ)
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        raise
+    except Exception:
+        if not self.catchall:
+            raise
+        stacktrace = format_exc()
+        environ['wsgi.errors'].write(stacktrace)
+        return HTTPError(500, "Internal Server Error", bottle._e(), stacktrace)
+
+# ---- 3️⃣ 替换 Bottle 类的 _handle 方法 ----
+bottle.Bottle._handle = _patched_handle
+
+
+
 
 app = Bottle()
 
