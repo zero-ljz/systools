@@ -16,33 +16,12 @@
   <div id="app">
     <h1>File Manager</h1>    
     <div>
-      <input type="text" id="newDirectory" placeholder="New Directory Name" v-model="newDirectoryName">
-      <button @click="createDirectory">Create Directory</button>
-    </div>
-    <div>
-      <input type="text" id="newFile" placeholder="New File Name" v-model="newFileName">
-      <button @click="createFile">Create File</button>
-    </div>
-    <hr style="margin:5px 0; border:0;">
-
-    <div>
       <input type="file" ref="fileInput" multiple @change="handleFileChange">
       <button @click="uploadFiles">Upload Local File</button>
     <br/>
       <input type="text" placeholder="URL" v-model="remoteURL">
       <button @click="uploadRemoteFile">Upload Remote File</button>
     </div>
-    <hr style="margin:5px 0; border:0;">
- 
-    <div>
-      <input type="text" v-model="zipFilename">
-      <button @click="packFiles">Pack Selected Files</button>
-    </div>
-    <div>
-      <input type="text" id="unpackFilename" placeholder="ZIP File to Unpack" v-model="unpackFilename">
-      <button @click="unpackFiles">Unpack Files</button>
-    </div>
-    
 
     <hr />
     <section style="overflow: auto; white-space: nowrap;">
@@ -52,7 +31,19 @@
       </li>
     </ul>
 
-    <div>
+    <div style="display: flex;">
+      <span>
+      <input type="text" v-model="keyword" placeholder="Filter by name" @keyup.enter="getFileList()">
+
+      <select v-model="fileType" @change="getFileList()">
+        <option value="">All</option>
+        <option value="file">File Only</option>
+        <option value="dir">Folder Only</option>
+      </select>
+      <label><input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">Hidden</label>
+      </span>
+      
+      <span style="flex-grow: 1; text-align: right;">
      SortBy:
       <select v-model="sortBy" @change="getFileList()">
         <option value="name">Name</option>
@@ -65,18 +56,7 @@
         <option value="asc">Asc</option>
         <option value="desc">Desc</option>
       </select>
-
-      <br />
-      <input type="text" v-model="keyword" placeholder="Search Name..." @keyup.enter="getFileList()">
-
-      <select v-model="fileType" @change="getFileList()">
-        <option value="">All</option>
-        <option value="file">File Only</option>
-        <option value="dir">Dir Only</option>
-      </select>
-      <label><input type="checkbox" v-model="showHiddenFiles" @change="() => getFileList()">Hidden</label>
-
-      
+</span>
     </div>
 
     
@@ -88,12 +68,17 @@
       <button @click="goToParentDirectory">../</button>
       <input type="text" id="directory" v-model="currentDirectory">
       <button @click="goToDirectory(currentDirectory)">Go</button>
+      &nbsp;&nbsp;
+      <button @click="copySelected">Copy</button>
+      <button style="color: orange;" @click="moveSelected">Move</button>
+      <button style="color: red;" @click="deleteSelected">Delete</button>
+      <button @click="packSelected">Pack</button>
+      
       </span>
 
       <span style="flex-grow: 1; text-align: right;">
-      <button @click="copySelected">Copy Selected</button>
-      <button style="color: orange;" @click="moveSelected">Move Selected</button>
-      <button style="color: red;" @click="deleteSelected">Delete Selected</button>
+        <button @click="createFile">New File</button>
+        <button @click="createDirectory">New Folder</button>
       </span>
     </div>
     <hr style="margin:2px 0; border:0;">
@@ -121,7 +106,7 @@
             <router-link v-if="file.is_directory" :to="`/directory/${file.path}`">{{ file.name }}</router-link>
           </td>
           <td style="padding: 5px;">
-            <span v-if="file.is_directory">Directory</span>
+            <span v-if="file.is_directory">Folder</span>
             <span v-else>File</span>
           </td>
           <td style="padding: 5px;"><span v-if="!file.is_directory">{{ formattedSize(file.size) }}</span></td>
@@ -136,15 +121,16 @@
             <button v-if="!file.is_directory" @click="previewFile(file.path)">Preview</button>
             <button v-if="!file.is_directory" @click="downloadFile(file.path)">Download</button>
             <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
+            <button v-if="['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.xz', '.bz2', '.lz', '.zst'].some(ext => file.path.toLowerCase().endsWith(ext))" @click="unpackFiles(file.path)">Unpack</button>
           </td>
         </tr>
       </tbody>
     </table>
 
     <div>
-      <button @click="prevPage" :disabled="page <= 1">Previous</button>
+      <button @click="prevPage" :disabled="page <= 1"><</button>
       <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
-      <button @click="nextPage" :disabled="page >= totalPages">Next</button>&nbsp;&nbsp;
+      <button @click="nextPage" :disabled="page >= totalPages">></button>&nbsp;&nbsp;
       <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
     </div>
     </section>
@@ -245,11 +231,7 @@
       el: '#app',
       data: {
         currentDirectory: '/',
-        newDirectoryName: '',
-        newFileName: '',
         remoteURL: '',
-        zipFilename: '',
-        unpackFilename: '',
         disks: [],
         files: [],
         selectAll: false, // 全选按钮的状态
@@ -280,8 +262,6 @@
         // let breadcrumb = createPathBreadcrumb(this.$route.params.directory);
         // document.getElementById("breadcrumb").replaceChildren(breadcrumb);
 
-        this.zipFilename = this.$route.params.directory + '/archive.zip';
-
         // 监听路由参数变化
         this.$watch(
           () => this.$route.params.directory,
@@ -294,8 +274,6 @@
 
             let breadcrumb = createPathBreadcrumb(newDirectory);
             document.getElementById("breadcrumb").replaceChildren(breadcrumb);
-
-            this.zipFilename = newDirectory + '/archive.zip';
 
           }
         );
@@ -417,8 +395,12 @@
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         },
         createDirectory() {
+          const newDirectoryName = prompt('Enter new directory name:', 'folder1');
+          if (newDirectoryName == null || newDirectoryName.trim() === '') {
+            return;
+          }
           axios.post(`${BASE_URL}directories`, {
-            directory: this.currentDirectory + '/' + this.newDirectoryName
+            directory: this.currentDirectory + '/' + newDirectoryName
           })
             .then(response => {
               console.log(response.data.message);
@@ -429,8 +411,12 @@
             });
         },
         createFile() {
+          const newFileName = prompt('Enter new file name:', 'file1.txt');
+          if (newFileName == null || newFileName.trim() === '') {
+            return;
+          }
           axios.post(`${BASE_URL}files`, {
-            filename: this.currentDirectory + '/' + this.newFileName
+            filename: this.currentDirectory + '/' + newFileName
           })
             .then(response => {
               console.log(response.data.message);
@@ -645,10 +631,20 @@ handleFileChange(event) {
               console.error(error);
             });
         },
-        packFiles() {
+        
+        packSelected() {
+          // 打包选中的文件/目录
+          const selectedFiles = this.getSelectedFiles();
+          if (selectedFiles.length === 0) {
+            alert('No files/directories selected.');
+            return;
+          }
+          const zipFilename = prompt('Enter the zip filename:', this.$route.params.directory + '/archive.zip');
+          if (!zipFilename) return;
+
           axios.post(`${BASE_URL}files/pack`, {
-            files: this.getSelectedFiles(),
-            zip_filename: this.zipFilename // 检测到用户输入的是相对路径时自动转为绝对路径
+            files: selectedFiles,
+            zip_filename: zipFilename // 检测到用户输入的是相对路径时自动转为绝对路径
           })
             .then(response => {
               console.log(response.data.message);
@@ -658,9 +654,9 @@ handleFileChange(event) {
               console.error(error);
             });
         },
-        unpackFiles() {
+        unpackFiles(filename) {
           axios.post(`${BASE_URL}files/unpack`, {
-            zip_filename: this.unpackFilename,
+            zip_filename: filename,
             extract_directory: this.currentDirectory
           })
             .then(response => {
