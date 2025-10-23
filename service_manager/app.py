@@ -248,7 +248,7 @@ def restart():
 @app.route('/update', method=['GET', 'POST'])
 def update():
     name = request.query.name
-    if not name.endswith('.json'):
+    if not name.endswith('.json') or name.strip() == '.json':
         abort(400, 'Invalid service name')
 
     config = os.path.join(config_dir, name)

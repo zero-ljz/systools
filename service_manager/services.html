@@ -26,7 +26,7 @@
         Service List
     </h2>
     <section style="overflow: auto; white-space: nowrap;">
-        <a href="javascript: (() => { const q = prompt('请输入服务名称：', ''); if (q == null) return; location.href = BASE_URL + 'update?name=' + q + '.json'; })();">Add</a>
+        <a href="javascript: (() => { const q = prompt('请输入服务名称：', ''); if (q == null || q.trim() === '') return; location.href = BASE_URL + 'update?name=' + q + '.json'; })();">Add</a>
         <button onclick=" 
         const names = []; 
         document.querySelectorAll(`table > tbody tr td input[type='checkbox']:checked`).forEach(checkbox => names.push(checkbox.value)); 
