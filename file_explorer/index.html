@@ -35,7 +35,7 @@
       <button @click="uploadFiles">Upload Local File</button>
     </div>
     <div>
-      <input type="text" v-model="remoteURL">
+      <input type="text" placeholder="URL" v-model="remoteURL">
       <button @click="uploadRemoteFile">Upload Remote File</button>
     </div>
     <br />
@@ -63,7 +63,7 @@
     <br />
     <div style="">
       Filter:
-      <input type="text" v-model="keyword" placeholder="搜索名称..." @keyup.enter="getFileList()">
+      <input type="text" v-model="keyword" placeholder="Search Name..." @keyup.enter="getFileList()">
 
       <select v-model="fileType" @change="getFileList()">
         <option value="">All</option>
@@ -90,10 +90,10 @@
     </div>
 
     <div style="">
-      <button @click="prevPage" :disabled="page <= 1">上一页</button>
-      <span>第 {{ page }} / {{ totalPages }} 页（共 {{ total }} 项）</span>
-      <button @click="nextPage" :disabled="page >= totalPages">下一页</button>
-      <label>每页</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
+      <button @click="prevPage" :disabled="page <= 1">Previous</button>
+      <span>page {{ page }} / {{ totalPages }} (total {{ total }} )</span>
+      <button @click="nextPage" :disabled="page >= totalPages">Next</button>
+      <label>per page</label><input type="number" v-model.number="perPage" @change="getFileList()" style="width: 60px;">
     </div>
 
     <button onclick="history.back()">Back</button> <button onclick="history.forward()">Forward</button>
@@ -133,11 +133,11 @@
           <td>
             <button @click="copyPath(file.path)">Copy Path</button>
             <button @click="renameFile(file.path)">Rename</button>
-            <button @click="deleteFile(file.path)">del</button>
-            <button @click="copyFile(file.path)">cp</button>
-            <button @click="moveFile(file.path)">mv</button>
-            <button v-if="!file.is_directory" @click="previewFile(file.path)">preview</button>
-            <button v-if="!file.is_directory" @click="downloadFile(file.path)">download</button>
+            <button @click="deleteFile(file.path)">delete</button>
+            <button @click="copyFile(file.path)">copy</button>
+            <button @click="moveFile(file.path)">move</button>
+            <button v-if="!file.is_directory" @click="previewFile(file.path)">Preview</button>
+            <button v-if="!file.is_directory" @click="downloadFile(file.path)">Download</button>
             <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
           </td>
         </tr>
