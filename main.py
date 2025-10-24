@@ -104,5 +104,12 @@ if __name__ == '__main__':
     parser.add_argument('--port', '-p', type=int, default=8000, help='Port to listen on (default: 8000)')
     args = parser.parse_args()
 
-    server = WSGIServer((args.host, args.port), app, handler_class=WebSocketHandler)
-    server.serve_forever()
+    from bottle import debug
+    debug(True)
+    try:
+        print(f"Starting WSGI server on http://{args.host}:{args.port}")
+        server = WSGIServer((args.host, args.port), app, handler_class=WebSocketHandler)
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("Stopping WSGI server...")
+        server.stop()

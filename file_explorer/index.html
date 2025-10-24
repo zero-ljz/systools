@@ -246,6 +246,7 @@
       el: '#app',
       data: {
         currentDirectory: '/',
+        lastDirectory: '', // 上次访问的目录
         disks: [],
         files: [],
         showHiddenFiles: false, // 是否显示隐藏文件
@@ -286,7 +287,7 @@
           () => this.$route.params.directory,
           (newDirectory) => {
             console.log('路由参数变化' + newDirectory);
-
+            this.lastDirectory = this.currentDirectory;
             this.currentDirectory = newDirectory || '/';
             this.page = 1; // 切换目录重置页码
             this.getFileList(this.currentDirectory); // 获取新目录的文件列表
@@ -352,6 +353,8 @@
             .catch(error => {
               console.error(error);
               alert("获取文件列表失败");
+              this.$router.push(`/directory/${this.lastDirectory}`); // 返回上次访问的目录
+
             });
         },
 
