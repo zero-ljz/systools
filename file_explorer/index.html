@@ -142,9 +142,9 @@
 
       <div>
         <button @click="prevPage" :disabled="page <= 1">
-          << /button>
+          &lt;</button>
             <span>page: {{ page }} / {{ totalPages }} (total: {{ total }} )</span>
-            <button @click="nextPage" :disabled="page >= totalPages">></button>&nbsp;&nbsp;
+            <button @click="nextPage" :disabled="page >= totalPages">&gt;</button>&nbsp;&nbsp;
             <label>per page:</label><input type="number" v-model.number="perPage" @change="getFileList()"
               style="width: 60px;">
       </div>
@@ -250,7 +250,7 @@
         files: [],
         showHiddenFiles: false, // 是否显示隐藏文件
         selectAll: false, // 全选按钮的状态
-        
+
         showEditDialog: false, // 是否显示编辑文件对话框
         editedContent: "", // 编辑后的文件内容
         selectedFilePath: "", // 选中的文件路径
