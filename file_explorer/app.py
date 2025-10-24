@@ -8,6 +8,7 @@ import urllib.request
 import zipfile
 import subprocess
 import mimetypes
+import chardet
 from urllib.parse import quote, unquote, unquote_plus
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
@@ -377,56 +378,108 @@ def download_file(filename):
 
     return file_iterator(file_path)
 
-
+# 预览文件
 @app.get('/files/preview/<filename:path>')
 def preview_file(filename):
     file_path = os.path.abspath(unquote(filename))
     filename = os.path.basename(file_path)
-    
+
     # 检查文件是否存在
     if not os.path.isfile(file_path):
         response.status = 404
         return {'error': 'File not found'}
 
-    # 使用 mimetypes 识别 MIME 类型
+    # 识别 MIME 类型
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type:
-        mime_type = 'application/octet-stream'  # 默认类型
+        mime_type = 'application/octet-stream'
 
-    # 如果是文本类型，就强制加上 UTF-8 编码
-    if mime_type.startswith("text/"):
-        mime_type += "; charset=utf-8"
+    # 若是文本文件类型，尝试检测编码
+    encoding = None
+    if mime_type.startswith('text/'):
+        try:
+            # 仅读取前4KB进行检测，避免性能损失
+            with open(file_path, 'rb') as f:
+                raw_head = f.read(4096)
+                result = chardet.detect(raw_head)
+                encoding = result.get('encoding') or 'utf-8'
+                confidence = result.get('confidence', 0)
 
-    # 设置响应头以支持预览
+                # 若置信度低，则默认UTF-8
+                if confidence < 0.5:
+                    encoding = 'utf-8'
+        except Exception:
+            encoding = 'utf-8'
+
+        mime_type += f'; charset={encoding.lower()}'
+
+    # 设置响应头
     response.content_type = mime_type
     response.set_header('Content-Disposition', f'inline; filename="{quote(filename)}"')
 
-    # 读取并返回文件内容
+    # 返回文件内容
     with open(file_path, 'rb') as f:
         return f.read()
+
+
 
 # 获取文件内容
 @app.get("/files/content/<filename:path>")
 def get_file_content(filename):
-    file_path = os.path.abspath(filename)
+    file_path = os.path.abspath(unquote(filename))
 
     # 检查文件是否存在
     if not os.path.isfile(file_path):
         abort(404, "File not found.")
 
-    # 使用 mimetypes 模块获取文件的 MIME 类型
-    mime_type, encoding = mimetypes.guess_type(file_path)
+    # 检查文件大小，避免读取巨型文件
+    max_size = 5 * 1024 * 1024  # 5MB
+    file_size = os.path.getsize(file_path)
+    if file_size > max_size:
+        abort(400, f"File too large to preview ({file_size // 1024} KB).")
 
-    # 判断文件是否为文本文件
-    # if not mime_type or not mime_type.startswith("text/"):
-    #     abort(400, "Only text files can be accessed.")
+    # 读取前 4KB 判断文件类型
+    with open(file_path, "rb") as f:
+        raw_head = f.read(4096)
 
-    # 读取文件内容
-    with open(file_path, "r", encoding='utf-8') as file:
-        content = file.read()
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
 
-    return {"content": content}
+    # 若 MIME 不是 text/*，则进一步检测
+    if not mime_type.startswith("text/"):
+        if len(raw_head) == 0:
+            # ✅ 空文件直接认为是文本文件
+            mime_type = "text/plain"
+        else:
+            text_char_ratio = sum(32 <= b <= 126 or b in (9, 10, 13) for b in raw_head) / len(raw_head)
+            if text_char_ratio < 0.85:  # 阈值可调
+                abort(400, "Binary file cannot be previewed as text.")
+            mime_type = "text/plain"
 
+    # 检测文本编码
+    if len(raw_head) > 0:
+        result = chardet.detect(raw_head)
+        encoding = result.get('encoding') or 'utf-8'
+        confidence = result.get('confidence', 0)
+        if confidence < 0.5:
+            encoding = 'utf-8'
+    else:
+        # ✅ 空文件默认UTF-8
+        encoding = 'utf-8'
+
+    # 读取完整内容
+    try:
+        with open(file_path, "r", encoding=encoding, errors="replace") as f:
+            content = f.read()
+    except Exception:
+        abort(400, f"Failed to read file with detected encoding: {encoding}")
+
+    return {
+        "content": content,
+        "encoding": encoding,
+        "mime_type": mime_type
+    }
 
 # 编辑文本文件
 @app.post("/files/edit")

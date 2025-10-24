@@ -22,6 +22,28 @@
     </form>
     <hr style="margin:10px 0; border:0;">
 
+    <form>
+        <textarea name="sourceText" rows="2" placeholder="Source Text "></textarea><br/>
+        <input type="text" name="keyword" placeholder="" size="1" title="Keyword: 多个用,分隔" value="\">
+        <span>to:</span>
+        <input type="text" name="replacement" placeholder="" size="1" title="Replacement" value="/">
+        <button type="button" onclick="
+        const form = this.parentElement;
+        const keywords = form.elements['keyword'].value.split(',').map(k => k.trim()).filter(k => k);
+        const replacement = form.elements['replacement'].value;
+        const sourceTextInput = form.elements['sourceText'];
+    
+        let result = sourceTextInput.value;
+        for (const key of keywords) {
+          const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          result = result.replace(regex, replacement);
+        }
+        sourceTextInput.value= result;
+      ">Replace</button>
+    </form>
+
+    <hr style="margin:10px 0; border:0;">
+
     <h2>
         Service List
     </h2>
@@ -36,7 +58,7 @@
         fetch(BASE_URL + 'start?name=' + encodeURIComponent(names.join(',')))
         .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
         })();
-        void(0);">Start Selected</button>
+        void(0);">Start</button>
         <button onclick=" 
         const names = []; 
         document.querySelectorAll(`table > tbody tr td input[type='checkbox']:checked`).forEach(checkbox => names.push(checkbox.value)); 
@@ -46,7 +68,7 @@
         fetch(BASE_URL + 'stop?name=' + encodeURIComponent(names.join(',')))
         .then(async (resp) => { text = await resp.text(); alert(text); this.disabled = false; location.reload(); })
         })();
-        void(0);">Stop Selected</button>
+        void(0);">Stop</button>
         <hr style="margin:3px 0; border:0;">
         <table class="table table-striped" border="1" cellspacing="0" style="width: 100%;">
             <thead>

@@ -11,6 +11,8 @@ import web_shell.app as web_shell
 import file_explorer.app as file_explorer
 import service_manager.app as service_manager
 import sysinfo.app as sysinfo
+# import importlib
+# sysinfo = importlib.import_module("sysinfo.app")
 
 print('main.py Current working directory:', os.getcwd())
 
@@ -23,7 +25,7 @@ _original_handle = bottle.Bottle._handle
 def _patched_handle(self, environ):
     converted = 'bottle.raw_path' in environ
     path = environ['bottle.raw_path'] = environ['PATH_INFO']
-    if bottle.py3k and not converted:
+    if bottle.py3k and not converted and not environ.get('SCRIPT_NAME'):
         try:
             environ['PATH_INFO'] = path.encode('latin1').decode('utf8')
         except UnicodeError:

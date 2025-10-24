@@ -29,20 +29,35 @@ def monitor_process(proc, cleanup_fn):
     print(f"Process PID: {proc.pid} has exited with return code: {proc.returncode}")
     cleanup_fn()
 
-def start_config(file_path, name):
+def init_service(file_path, name, always_start=False):
+    '''
+    根据服务的配置文件创建/更新服务对象并启动服务。
+    服务从未启动过才启动, 不启动已经停止的服务
+    '''
     with open(file_path, "r", encoding="utf-8") as f:
-        service = Service(name=name, **json.load(f))
-    services[service.name] = service
+        config = json.load(f)
+    
+    if name in services:
+        service = services[name]
+        service.cmd = config["cmd"]
+        service.cwd = config.get("cwd") or os.path.expanduser('~')
+        service.env = os.environ.copy()
+        service.env.update(config.get("env", {}))
+        service.is_enabled = config["is_enabled"]
+    else:
+        service = Service(name=name, **config)
+        services[name] = service
 
-    if service.is_enabled and not service.process:
+    if service.is_enabled and (not service.process or always_start):
         try:
             pid = service.start()
             msg = f"{service.name} Started with pid: {str(pid)}"
         except RuntimeError as e:
             msg = f"{service.name} Service failed: {str(e)}"
         print(msg)
+        return msg
 
-def load_services():
+def load_configs():
     configs = [
         {"file_path": file_path, "stat": stat, "name": name, "filename": filename}
         for filename in os.listdir(config_dir) 
@@ -54,7 +69,7 @@ def load_services():
     ]
     print(f"Found {len(configs)} service configurations.\n\n")
     for config in configs:
-        start_config(file_path=config["file_path"], name=config["name"])
+        init_service(file_path=config["file_path"], name=config["name"])
 
 def format_bytes(bytes):
     sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
@@ -122,7 +137,7 @@ class Service:
             self.process = subprocess.Popen(
                 args=cmd_splits, cwd=self.cwd or os.getcwd(),
                 stdin=subprocess.PIPE, stdout=self.log_file, stderr=self.log_file, # 运行python脚本时必须在其代码顶部加上sys.stdout.reconfigure(line_buffering=True) 或者用python.exe -u运行才能实时输出日志
-                env=self.env, 
+                env=self.env, # win下传空字典会报winerror87
                 shell=False, # shell=True，它会让系统用 shell 去解析命令，比如：Windows 下：cmd.exe /c "python my_script.py --arg value"  Linux/Mac 下：/bin/sh -c "python my_script.py --arg value"
                 text=True, encoding='utf-8', errors='ignore',
             )
@@ -198,9 +213,18 @@ def test_start():
     with open(config, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
 
-    start_config(config, 'test')
-    # redirect('/log_view?name=test.json')
-    redirect(app.get_url('log_view') + '?name=test.json')
+    out = init_service(config, 'test', always_start=True)
+    return (f'''\
+        <html>
+        <head><title>Test Start Result - redirecting...</title></head>
+        <meta http-equiv="refresh" content="0.1;url={app.get_url('log_view') + '?name=test.json'}">
+        <body>
+        <script>
+        alert("{out}");
+        </script>
+        </body>
+        </html>
+        ''')
 
 @app.route('/start')
 def start():
@@ -268,7 +292,7 @@ def update():
         with open(config, 'w', encoding='utf-8') as f:
             f.write(text)
 
-        load_services()
+        load_configs()
         return '保存成功，请重启服务'
     
     with open(config, 'r', encoding='utf-8') as f:
@@ -300,8 +324,6 @@ def delete():
     if name in services:
         services[name].stop()
         services.pop(name)
-
-    load_services()
     return 'OK'
 
 @app.route('/log')
@@ -428,7 +450,7 @@ def on_exit():
         print(f"Stopping service {i+1}/{len(services)}: {service.name}")
         service.stop()
 
-load_services()
+load_configs()
 
 if __name__ == "__main__":
     

@@ -4,7 +4,6 @@ import json
 import socket
 import time
 import os
-
 import psutil
 import cpuinfo
 import gevent.monkey
@@ -16,108 +15,135 @@ from geventwebsocket.exceptions import WebSocketError
 gevent.monkey.patch_all()
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-
 app = Bottle()
 
-# WebSocket连接集合，用于存储所有已连接的客户端
+# 存放所有活跃 WebSocket 连接
 connected_websockets = set()
 
-# WebSocket处理类
+
 class SystemProbeWebSocket:
-    def __init__(self, ws):
+    def __init__(self, ws, client_ip):
         self.ws = ws
+        self.client_ip = client_ip
+        self.running = True
 
     def send_system_info(self):
-        os = platform.system()
-        release = platform.release()
-        version = platform.version()
-        machine = platform.machine()
-        node = platform.node()
+        try:
+            os_name = platform.system()
+            release = platform.release()
+            version = platform.version()
+            machine = platform.machine()
+            node = platform.node()
 
-        cpu_info = cpuinfo.get_cpu_info()
-        ip_address = socket.gethostbyname(socket.gethostname())
-        bits, linkage = platform.architecture()
+            cpu_info = cpuinfo.get_cpu_info()
+            ip_address = socket.gethostbyname(socket.gethostname())
+            bits, linkage = platform.architecture()
 
-        cpu_cores = psutil.cpu_count(logical=False)
-        cpu_threads = psutil.cpu_count(logical=True)
+            cpu_cores = psutil.cpu_count(logical=False)
+            cpu_threads = psutil.cpu_count(logical=True)
 
-        while True:
-            system_info = {
-                "os": os,
-                "release": release,
-                "version": version,
-                "machine": machine,
-                "processor": cpu_info['brand_raw'],
-                "node": node,
-                "bits": bits,
-                "linkage": linkage,
-                "cpu_usage": psutil.cpu_percent(),
-                "cpu_freq": psutil.cpu_freq().current,
-                "cpu_cores": cpu_cores,
-                "cpu_threads": cpu_threads,
-                "memory": psutil.virtual_memory()._asdict(),
-                "swap": psutil.swap_memory()._asdict(),
-                "disk": psutil.disk_usage('/')._asdict(),
-                "disk_io": psutil.disk_io_counters()._asdict(),
-                "network": psutil.net_io_counters()._asdict(),
-                "load_avg": psutil.getloadavg(),
-                "process_count": len(psutil.pids()),
-                "boot_time": int(psutil.boot_time()),
-                "ip_address": ip_address,
-                "tcp4_connection_count": len(psutil.net_connections(kind="tcp4")),
-                "tcp6_connection_count": len(psutil.net_connections(kind="tcp6")),
-                "timestamp": int(time.time()),
-                "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "time_zone": datetime.datetime.now().astimezone().tzinfo.tzname(None),
-            }
+            while self.running:
+                system_info = {
+                    "os": os_name,
+                    "release": release,
+                    "version": version,
+                    "machine": machine,
+                    "processor": cpu_info.get("brand_raw", "Unknown"),
+                    "node": node,
+                    "bits": bits,
+                    "linkage": linkage,
+                    "cpu_usage": psutil.cpu_percent(),
+                    "cpu_freq": psutil.cpu_freq().current if psutil.cpu_freq() else 0,
+                    "cpu_cores": cpu_cores,
+                    "cpu_threads": cpu_threads,
+                    "memory": psutil.virtual_memory()._asdict(),
+                    "swap": psutil.swap_memory()._asdict(),
+                    "disk": psutil.disk_usage("/")._asdict(),
+                    "disk_io": psutil.disk_io_counters()._asdict(),
+                    "network": psutil.net_io_counters()._asdict(),
+                    "load_avg": psutil.getloadavg() if hasattr(psutil, "getloadavg") else (0, 0, 0),
+                    "process_count": len(psutil.pids()),
+                    "boot_time": int(psutil.boot_time()),
+                    "ip_address": ip_address,
+                    "tcp4_connection_count": len(psutil.net_connections(kind="tcp4")),
+                    "tcp6_connection_count": len(psutil.net_connections(kind="tcp6")),
+                    "timestamp": int(time.time()),
+                    "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "time_zone": datetime.datetime.now().astimezone().tzinfo.tzname(None),
+                }
 
-            # 将系统信息转换为 JSON 字符串
-            json_data = json.dumps(system_info)
+                json_data = json.dumps(system_info)
 
+                try:
+                    self.ws.send(json_data)
+                except (WebSocketError, ConnectionResetError, BrokenPipeError) as e:
+                    print(f"[{self.client_ip}] WebSocket closed: {e}")
+                    break
+
+                gevent.sleep(1)
+
+        finally:
+            # 确保清理工作
+            self.close()
+
+    def close(self):
+        if self.ws in connected_websockets:
+            connected_websockets.remove(self.ws)
+        if not self.ws.closed:
             try:
-                # 将 JSON 字符串发送给客户端
-                self.ws.send(json_data)
-            except WebSocketError as e:
-                print(e)
-                break
+                self.ws.close()
+            except Exception:
+                pass
+        self.running = False
+        print(f"[{self.client_ip}] Connection cleaned up.")
 
-            # 每秒钟发送一次数据
-            gevent.sleep(1)
 
-    def run(self):
-        self.send_system_info()
-
-# WebSocket路由，用于接收WebSocket连接
-@app.route('/ws/')
+@app.route("/ws/")
 def handle_websocket():
-    wsock = request.environ.get('wsgi.websocket')
+    wsock = request.environ.get("wsgi.websocket")
     if not wsock:
-        abort(400, 'Expected WebSocket request.')
+        abort(400, "Expected WebSocket request.")
 
-    # 获取客户端的 IP 地址
-    client_ip = request.environ.get('REMOTE_ADDR')
-    print(f"New WebSocket connection from client IP: {client_ip}")
+    client_ip = request.environ.get("REMOTE_ADDR")
+    print(f"New WebSocket connection from client: {client_ip}")
 
-    # 创建并启动WebSocket处理类
-    ws_handler = SystemProbeWebSocket(wsock)
-    ws_handler.run()
+    connected_websockets.add(wsock)
+    ws_handler = SystemProbeWebSocket(wsock, client_ip)
 
-@app.route('/')
-@app.route('/index.html')
+    try:
+        ws_handler.send_system_info()
+    finally:
+        ws_handler.close()
+
+
+@app.route("/")
+@app.route("/index.html")
 def index():
-    return static_file('index.html', root=script_dir, mimetype='text/html')
+    return static_file("index.html", root=script_dir, mimetype="text/html")
+
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Run the server.')
-    parser.add_argument('--host', '-H', default='0.0.0.0', help='Host to listen on (default: 0.0.0.0)')
-    parser.add_argument('--port', '-p', type=int, default=8000, help='Port to listen on (default: 8000)')
+
+    parser = argparse.ArgumentParser(description="Run the system probe server.")
+    parser.add_argument("--host", "-H", default="0.0.0.0", help="Host to listen on (default: 0.0.0.0)")
+    parser.add_argument("--port", "-p", type=int, default=8000, help="Port to listen on (default: 8000)")
     args = parser.parse_args()
 
-    print(f"Starting server on {args.host}:{args.port}...")
-    server = WSGIServer((args.host, args.port), app,
-                        handler_class=WebSocketHandler)
-    server.serve_forever()
+    print(f"🚀 Starting server on {args.host}:{args.port}")
+    try:
+        server = WSGIServer((args.host, args.port), app, handler_class=WebSocketHandler)
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n🧹 Shutting down server...")
+        # 主动关闭所有连接
+        for ws in list(connected_websockets):
+            try:
+                ws.close()
+            except Exception:
+                pass
+        print("✅ Server stopped cleanly.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

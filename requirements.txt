@@ -5,6 +5,8 @@ bottle==0.12.25
 cheroot
 # gunicorn==20.1.0
 requests
+chardet
+
 
 psutil
 
