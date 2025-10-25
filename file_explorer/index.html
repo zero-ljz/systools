@@ -71,7 +71,8 @@
         <div style="display: flex; align-items: center; flex: 1; gap: 6px;">
           <button onclick="history.back()">←</button>
           <button onclick="history.forward()">→</button>
-          <button @click="goToParentDirectory">../</button>&nbsp;&nbsp;
+          <button @click="goToParentDirectory">../</button>
+          <button @click="goToDirectory('/')">/</button>&nbsp;&nbsp;
 
 
           <button @click="copySelected">Copy</button>
@@ -125,16 +126,20 @@
             <td style="padding: 5px;">{{ formatDateTime(file.created_at) }}</td>
             <td style="padding: 5px;">
               <button @click="copyText(file.path)">Copy Path</button>
-              <button @click="renameFile(file.path)">Rename</button>
-              <button @click="deleteFile(file.path)">delete</button>
-              <button @click="copyFile(file.path)">copy</button>
-              <button @click="moveFile(file.path)">move</button>
-              <button v-if="!file.is_directory" @click="previewFile(file.path)">Preview</button>
-              <button v-if="!file.is_directory" @click="downloadFile(file.path)">Download</button>
-              <button v-if="!file.is_directory" @click="editFileContent(file.path)">Edit</button>
-              <button
-                v-if="['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.xz', '.bz2', '.lz', '.zst'].some(ext => file.path.toLowerCase().endsWith(ext))"
-                @click="unpackFiles(file.path)">Unpack</button>
+              <select @change="handleFileAction($event.target.value, file.path); $event.target.value = '';">
+  <option disabled selected value="">More</option>
+  <option value="renameFile">Rename</option>
+  <option value="deleteFile">Delete</option>
+  <option value="copyFile">Copy</option>
+  <option value="moveFile">Move</option>
+  <option v-if="!file.is_directory" value="previewFile">Preview</option>
+  <option v-if="!file.is_directory" value="downloadFile">Download</option>
+  <option v-if="!file.is_directory" value="editFileContent">Edit</option>
+  <option
+    v-if="supportedExtensions.some(ext => file.path.toLowerCase().endsWith(ext))"
+    value="unpackFiles">Unpack</option>
+</select>
+
             </td>
           </tr>
         </tbody>
@@ -252,6 +257,8 @@
         showHiddenFiles: false, // 是否显示隐藏文件
         selectAll: false, // 全选按钮的状态
 
+        supportedExtensions: ['.zip', '.7z', '.tar.gz', '.tgz', '.tar.xz', '.txz', '.tar.bz2', '.gz', '.xz', '.zst'],
+
         showEditDialog: false, // 是否显示编辑文件对话框
         editedContent: "", // 编辑后的文件内容
         selectedFilePath: "", // 选中的文件路径
@@ -302,6 +309,14 @@
         );
       },
       methods: {
+handleFileAction(action, path) {
+    const fn = this[action];
+    if (typeof fn === 'function') {
+      fn(path);
+    } else {
+      console.warn(`方法 ${action} 不存在`);
+    }
+  },
         copyText(text) {
           if (navigator.clipboard?.writeText) {
             navigator.clipboard.writeText(text);
@@ -665,12 +680,12 @@
             alert('No files/directories selected.');
             return;
           }
-          const zipFilename = prompt('Enter the zip filename:', this.$route.params.directory + '/archive.zip');
-          if (!zipFilename) return;
+          const archiveFilename = prompt('Enter the archive filename:\n Supported extensions: ' + this.supportedExtensions.join(', '), this.$route.params.directory + '/archive.zip');
+          if (!archiveFilename) return;
 
           axios.post(`${BASE_URL}files/pack`, {
             files: selectedFiles,
-            zip_filename: zipFilename // 检测到用户输入的是相对路径时自动转为绝对路径
+            archive_filename: archiveFilename // 检测到用户输入的是相对路径时自动转为绝对路径
           })
             .then(response => {
               console.log(response.data.message);
@@ -681,9 +696,13 @@
             });
         },
         unpackFiles(filename) {
+          const targetDir = prompt('Which directory should it be decompressed to?', this.currentDirectory);
+          if (targetDir == null || targetDir.trim() === '') {
+            return;
+          }
           axios.post(`${BASE_URL}files/unpack`, {
-            zip_filename: filename,
-            extract_directory: this.currentDirectory
+            archive_filename: filename,
+            extract_directory: targetDir
           })
             .then(response => {
               console.log(response.data.message);

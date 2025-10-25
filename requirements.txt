@@ -5,10 +5,14 @@ bottle==0.12.25
 cheroot
 # gunicorn==20.1.0
 requests
-chardet
 
 
 psutil
 
 gevent-websocket
 py-cpuinfo==9.0.0
+
+# file_explorer
+chardet
+py7zr
+zstandard

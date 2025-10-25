@@ -1,14 +1,17 @@
+import locale
 import os
 import stat
 import io
 import platform
-import shutil
 import psutil
+import shutil
 import urllib.request
-import zipfile
 import subprocess
 import mimetypes
 import chardet
+import zipfile, tarfile, gzip, lzma
+import py7zr
+import zstandard as zstd
 from urllib.parse import quote, unquote, unquote_plus
 from bottle import Bottle, request, response, template, static_file, redirect, abort
 
@@ -277,17 +280,41 @@ def move_files():
     return {"message": "Files moved successfully."}
 
 
-# 打包文件或目录
-@app.post("/files/pack")
-def pack_files(): # 打包的压缩包在解压后的文件中的中文文件名乱码
-    files_to_pack = request.json.get("files")  # 获取要打包的文件列表
-    zip_filename = request.json.get("zip_filename")  # 获取目标 ZIP 文件名
-
     # command_args = ["zip", "-r", "-q", zip_filename] + files_to_pack  # 构造命令行参数
     # print(command_args)
     # stdout = subprocess.run(command_args, capture_output=True, text=True, encoding='utf-8', errors='ignore').stdout
     # return {"message": stdout}
+    
+# 打包文件或目录
+@app.post("/files/pack")
+def pack_files():
+    files_to_pack = request.json.get("files")  # 获取要打包的文件列表
+    archive_filename = request.json.get("archive_filename")  # 获取目标文件名
 
+    ext = archive_filename.lower()
+
+    if ext.endswith(".zip"):
+        return pack_zip(files_to_pack, archive_filename)
+    elif ext.endswith((".tar.gz", ".tgz")):
+        return pack_tar(files_to_pack, archive_filename, "gz")
+    elif ext.endswith((".tar.xz", ".txz")):
+        return pack_tar(files_to_pack, archive_filename, "xz")
+    elif ext.endswith(".tar.bz2"):
+        return pack_tar(files_to_pack, archive_filename, "bz2")
+    elif ext.endswith(".7z"):
+        return pack_7z(files_to_pack, archive_filename)
+    elif ext.endswith(".gz"):
+        return pack_gz(files_to_pack, archive_filename)
+    elif ext.endswith(".xz"):
+        return pack_xz(files_to_pack, archive_filename)
+    elif ext.endswith(".zst"):
+        return pack_zst(files_to_pack, archive_filename)
+    else:
+        abort(400, f"Unsupported archive format: {archive_filename}")
+
+
+
+def pack_zip(files_to_pack, zip_filename):
     with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zip_file:  # 创建 ZIP 文件对象
         for file_path in files_to_pack:
             file_name = os.path.basename(file_path)  # 获取文件名
@@ -296,22 +323,195 @@ def pack_files(): # 打包的压缩包在解压后的文件中的中文文件名
             elif os.path.isdir(file_path):  # 如果是目录
                 base_dir = os.path.basename(file_path)  # 获取目录的基本名称
                 for root, dirs, files in os.walk(file_path):  # 遍历目录中的文件和子目录
+                    if not files and not dirs: # 添加空目录
+                        rel_path = os.path.relpath(root, os.path.join(file_path, '..'))
+                        zip_file.writestr(rel_path + '/', '')  # 注意加斜杠表示目录
                     for file in files:
-                        zip_file.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.join(file_path, '..')))
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path,  os.path.join(file_path, '..'))
+                        zip_file.write(full_path, rel_path)
 
     return {"message": "Files packed successfully."}  # 返回成功消息
+
+
+
+
+def pack_tar1(files_to_pack, tar_filename, compression_type): # 文件名乱码
+    """
+    支持多文件、目录递归、保留相对路径、空目录打包的 tar 打包函数
+    """
+    mode = "w:" + compression_type if compression_type else "w"
+
+    # 找到所有文件路径的公共父目录（保证相对路径结构）
+    common_base = os.path.commonpath(files_to_pack)
+
+    with tarfile.open(tar_filename, mode) as tar_file:
+        for path in files_to_pack:
+            if not os.path.exists(path):
+                continue
+
+            rel_base = os.path.relpath(path, common_base)
+
+            if os.path.isfile(path):
+                tar_file.add(path, arcname=rel_base)
+            elif os.path.isdir(path):
+                # 遍历目录树
+                for root, dirs, files in os.walk(path):
+                    rel_root = os.path.relpath(root, common_base)
+
+                    # ✅ 空目录打包
+                    if not dirs and not files:
+                        info = tarfile.TarInfo(rel_root)
+                        info.type = tarfile.DIRTYPE
+                        info.mtime = int(os.path.getmtime(root))
+                        tar_file.addfile(info)
+                        continue
+
+                    # ✅ 文件打包
+                    for f in files:
+                        full_path = os.path.join(root, f)
+                        rel_path = os.path.relpath(full_path, common_base)
+                        tar_file.add(full_path, arcname=rel_path)
+
+    return {"message": f"Files packed successfully into {compression_type.upper()} tar."}
+
+def pack_tar(files_to_pack, tar_filename, compression_type):
+    compression_flags = {
+        "gz": "z",
+        "bz2": "j",
+        "xz": "J",
+        "": "",
+    }
+    compress_flag = compression_flags.get(compression_type, "")
+
+    # 找到公共父目录
+    common_base = os.path.commonpath(files_to_pack)
+
+    # 确保输出目录存在
+    output_dir = os.path.dirname(tar_filename)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # 切换到公共父目录再打包（保证相对路径）
+    command = ["tar", f"cv{compress_flag}f", tar_filename]
+    # 使用相对路径
+    rel_paths = [os.path.relpath(path, common_base) for path in files_to_pack]
+    command.extend(rel_paths)
+
+    try:
+        subprocess.run(command, cwd=common_base, check=True)
+        return {"message": f"Files packed successfully into {compression_type.upper()} tar."}
+    except subprocess.CalledProcessError as e:
+        abort(500, f"Failed to pack files: {str(e)}")
+
+def pack_7z(files_to_pack, archive_filename):
+    with py7zr.SevenZipFile(archive_filename, mode='w') as archive:
+        for file_path in files_to_pack:
+            if os.path.isfile(file_path):  # 如果是文件
+                archive.write(file_path, arcname=os.path.basename(file_path))  # 将文件写入 7z
+            elif os.path.isdir(file_path):  # 如果是目录
+                base_dir = os.path.basename(file_path)  # 获取目录的基本名称
+                for root, dirs, files in os.walk(file_path):  # 遍历目录中的文件和子目录
+                    # 处理空目录，py7zr 不会自动添加空目录
+                    if not files and not dirs:
+                        rel_path = os.path.relpath(root, os.path.join(file_path, '..'))
+                        archive.write(root, arcname=rel_path + '/')  # 注意加斜杠表示目录
+                    # 添加文件
+                    for file in files:
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, os.path.join(file_path, '..'))
+                        archive.write(full_path, arcname=rel_path)
+    return {"message": "Files packed successfully into 7z."}
+
+
+def pack_gz(files_to_pack, gz_filename):
+    with gzip.open(gz_filename, "wb") as gz_file:
+        for file_path in files_to_pack:
+            with open(file_path, "rb") as f:
+                gz_file.write(f.read())
+    return {"message": "Files packed successfully into GZ."}
+
+
+def pack_xz(files_to_pack, xz_filename):
+    with lzma.open(xz_filename, "wb") as xz_file:
+        for file_path in files_to_pack:
+            with open(file_path, "rb") as f:
+                xz_file.write(f.read())
+    return {"message": "Files packed successfully into XZ."}
+
+
+def pack_zst(files_to_pack, zst_filename):
+    with open(zst_filename, 'wb') as zst_file:
+        with zstd.ZstdCompressor().stream_writer(zst_file) as compressor:
+            for file_path in files_to_pack:
+                with open(file_path, 'rb') as f:
+                    compressor.write(f.read())
+    return {"message": "Files packed successfully into ZST."}
 
 
 # 解压文件
 @app.post("/files/unpack")
 def unpack_files():
-    zip_filename = request.json.get("zip_filename")
+    archive_filename = request.json.get("archive_filename")
     extract_directory = request.json.get("extract_directory")
+    extract_directory_path = os.path.abspath(extract_directory)
+    os.makedirs(extract_directory_path, exist_ok=True)
 
-    with zipfile.ZipFile(zip_filename, "r") as zip_file:
-        zip_file.extractall(extract_directory)
+    # 获取扩展名（统一小写）
+    basename = os.path.basename(archive_filename).lower()
+    ext = None
+    for candidate in [".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".zip", ".7z", ".gz", ".xz", ".zst"]:
+        if basename.endswith(candidate):
+            ext = candidate
+            break
 
-    return {"message": "Files unpacked successfully."}
+    if not ext:
+        return {"error": "Unsupported or unknown file format"}
+
+    try:
+        if ext == ".zip":
+            with zipfile.ZipFile(archive_filename, "r") as zip_file:
+                zip_file.extractall(extract_directory_path)
+
+        elif ext in [".tar.gz", ".tgz"]:
+            with tarfile.open(archive_filename, "r:gz") as tar:
+                tar.extractall(path=extract_directory_path)
+
+        elif ext in [".tar.xz", ".txz"]:
+            with tarfile.open(archive_filename, "r:xz") as tar:
+                tar.extractall(path=extract_directory_path)
+
+        elif ext == ".tar.bz2":
+            with tarfile.open(archive_filename, "r:bz2") as tar:
+                tar.extractall(path=extract_directory_path)
+
+        elif ext == ".7z":
+            with py7zr.SevenZipFile(archive_filename, mode="r") as archive:
+                archive.extractall(path=extract_directory_path)
+
+        elif ext == ".gz":
+            out_path = os.path.join(extract_directory_path, os.path.splitext(os.path.basename(archive_filename))[0])
+            with gzip.open(archive_filename, "rb") as f_in, open(out_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        elif ext == ".xz":
+            out_path = os.path.join(extract_directory_path, os.path.splitext(os.path.basename(archive_filename))[0])
+            with lzma.open(archive_filename, "rb") as f_in, open(out_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        elif ext == ".zst":
+            out_path = os.path.join(extract_directory_path, os.path.splitext(os.path.basename(archive_filename))[0])
+            with open(archive_filename, "rb") as f_in, open(out_path, "wb") as f_out:
+                dctx = zstd.ZstdDecompressor()
+                dctx.copy_stream(f_in, f_out)
+
+        else:
+            return {"error": f"Unsupported format: {ext}"}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    return {"message": f"Files unpacked to {extract_directory_path}"}
 
 # 上传多个文件
 @app.post("/files/upload")
