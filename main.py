@@ -80,22 +80,29 @@ def echo():
     print(f'\n\n\n{request_line}\n{headers}\n\n{body}')
 app.add_hook('before_request', echo)
 
+
+
+
+# 1. 提供前端 SPA 的入口 HTML 文件
+@app.route('/')
+def serve_spa():
+    return static_file('index.html', root='./frontend')
+
+# 2. 提供前端 SPA 的静态资源（如 JS、CSS）
+@app.route('/assets/<filepath:path>')
+def serve_spa_assets(filepath):
+    return static_file(filepath, root='./frontend/assets')
+
+# 3. 后端 API
 app.mount('/web_shell', web_shell.app)
 app.mount('/file_explorer', file_explorer.app)
 app.mount('/service_manager', service_manager.app)
 app.mount('/sysinfo', sysinfo.app)
 
-@app.route('/')
-def index():
-    return template('''
-    <h1>Welcome to SysTools</h1>
-    <ul>
-        <li><a href="/web_shell">Web Shell</a></li>
-        <li><a href="/file_explorer">File Explorer</a></li>
-        <li><a href="/service_manager">Service Manager</a></li>
-        <li><a href="/sysinfo">System Info</a></li>
-    </ul>
-    ''')
+# 4. 后端自己的静态资源
+@app.route('/static/<filepath:path>')
+def serve_backend_static(filepath):
+    return static_file(filepath, root='./static')
 
 if __name__ == '__main__':
     import argparse

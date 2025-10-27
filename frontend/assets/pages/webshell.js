@@ -1,49 +1,59 @@
-<!DOCTYPE html>
-<html lang="zh-Hans">
+// assets/pages/webshell.js
+import { PageManager } from '../app.js';
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <link rel="icon" href="data:,">
-</head>
-
-<body>
-    <h2>
-        Web Shell
-    </h2>
-    <p>
-
+function renderWebShellPage(container) {
+  container.innerHTML = `
+    <h2>Web Shell</h2>
     <form id="form1" onsubmit="return saveFormData();">
         <input type="checkbox" id="shell"><label for="shell" title="用本程序启动时的Shell执行">Shell</label> &nbsp;
         <input type="checkbox" id="capture_output" checked><label for="capture_output">Capture Output</label> &nbsp;
-        <hr style="margin:5px 0; border:0;">
-        <input type="text" id="cwd" placeholder="cwd">
-        <hr />
-        <label><input id="uriComponentEncoding" type="checkbox">Encoding</label><br />
-        <input type="submit" value="Query Mode" title=""
-            onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
-        <input type="submit" value="Path Mode" title=""
-            onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
-        <div style="display: block; margin: 1rem 0;">
-            <input type="text" list="optionList" id="0" placeholder="0">
-            <datalist id="optionList">
-                <option value="python">python</option>
-                <option value="node">node</option>
-                <option value="curl">curl</option>
-            </datalist>
-            <button type="button" onclick="document.getElementById('0').value = ''" tabindex="-1">ReSelect</button>
+    <hr style="margin:5px 0; border:0;">
+    <input type="text" id="cwd" placeholder="cwd">
+    <hr/>
+    <label><input id="uriComponentEncoding" type="checkbox">Encoding</label><br/>
+    <input type="submit" value="Query Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
+    <input type="submit" value="Path Mode" title="" onclick="q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; window.location.href = q;">
+    <div style="display: block; margin: 1rem 0;">
+        <input type="text" list="optionList" id="0" placeholder="0">
+        <datalist id="optionList">
+            <option value="python">python</option>
+            <option value="node">node</option>
+            <option value="curl">curl</option>
+        </datalist>
+        <button type="button" onclick="document.getElementById('0').value = ''" tabindex="-1">ReSelect</button>
 
-            <button type="button" onclick="addParam()" tabindex="-1">+</button>
-            <button type="button" onclick="removeParam()" tabindex="-1">-</button>
-        </div>
-    </form>
-    </p>
+        <button type="button" onclick="addParam()" tabindex="-1">+</button>
+        <button type="button" onclick="removeParam()" tabindex="-1">-</button>
+    </div>
+</form>
+  `;
 
-    <script>
-        // 定义全局变量用于记录已存在的 textarea 控件数量
-        let textareaCount = 0;
+  // 初始化逻辑
+  loadFormData();
+  setupEventHandlers();
+}
 
-        function addParam() {
+function setupEventHandlers() {
+  document.getElementById('form1').addEventListener('submit', saveFormData);
+  document.querySelector('[value="Query Mode"]').onclick = () => {
+    const q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked));
+    if (q != null) window.location.href = q;
+  };
+  document.querySelector('[value="Path Mode"]').onclick = () => {
+    const q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked));
+    if (q != null) window.location.href = q;
+  };
+  document.querySelector('button[onclick*="addParam"]').onclick = addParam;
+  document.querySelector('button[onclick*="removeParam"]').onclick = removeParam;
+  document.querySelector('button[onclick*="ReSelect"]').onclick = () => {
+    document.getElementById('0').value = '';
+  };
+}
+
+// 你的其他函数（addParam, removeParam, saveFormData, loadFormData, genURL, getBaseUrl, getElementsWithNumberId）照搬过来
+
+
+function addParam() {
             // 创建新的 textarea 元素
             const newTextArea = document.createElement('textarea');
 
@@ -207,13 +217,17 @@
         }
 
 
-        window.onload = function () {
-            loadFormData();
-        }
 
-        const BASE_URL = getBaseUrl();
-        console.log("BASE_URL:", BASE_URL);
-    </script>
-</body>
+const BASE_URL = getBaseUrl();
 
-</html>
+// 注册页面生命周期钩子
+PageManager.registerHooks('webshell', {
+  onEnter() {
+    const container = document.querySelector('.page[data-page="webshell"]');
+    renderWebShellPage(container);
+    alert('打开webshell面板');
+  },
+  onLeave() {
+    // 可选：清理事件或 DOM
+  }
+});

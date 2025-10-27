@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>响应式桌面风格 SPA</title>
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <nav class="nav" id="nav">
+      <div class="logo">LOGO</div>
+      <ul id="nav-list"></ul>
+    </nav>
+
+    <main class="main" id="main-content">
+      <div class="page" data-page="home">🏠 首页内容</div>
+      <div class="page" data-page="files" style="display:none;">📁 文件内容</div>
+      <div class="page" data-page="settings" style="display:none;">⚙️ 设置内容</div>
+      <div class="page" data-page="notify" style="display:none;">🔔 通知内容</div>
+      <div class="page" data-page="help" style="display:none;">❓ 帮助内容</div>
+      <div class="page" data-page="webshell" style="display:none;">🧩 Web Shell</div>
+    </main>
+
+    <aside class="sidebar">
+      <div class="topbar">
+        <div class="topbar-icons">
+          <div class="icon" id="notify" title="通知">🔔</div>
+          <div class="icon" id="theme-toggle" title="主题切换">🌗</div>
+          <div class="icon" id="settings" title="设置">⚙️</div>
+          <div class="icon user-menu" title="用户">
+            👤
+            <div class="user-dropdown hidden">
+              <div>设置</div>
+              <div>退出</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="widgets">
+        <div class="widget notify-widget">
+          <h3>通知中心</h3>
+          <ul id="notify-list">
+            <li>🔔 欢迎使用桌面应用框架</li>
+            <li>📦 新版本已发布：v1.2.3</li>
+            <li>⚠️ 网络连接不稳定</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="dock" id="dock"></div>
+  <div id="dock-menu" class="dock-menu hidden"></div>
+
+  <script type="module" src="./assets/app.js"></script>
+  <script type="module" src="./assets/pages/files.js"></script>
+  <script type="module" src="./assets/pages/webshell.js"></script>
+</body>
+</html>
