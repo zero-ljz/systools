@@ -195,7 +195,23 @@ class Service:
 
 @app.route('/')
 def index():
-    return template((Path(script_dir) / 'services.html').as_posix(), services=services)    
+    return static_file('index.html', root=script_dir, mimetype='text/html')
+
+@app.route('/services')
+def get_services():
+    response.content_type = 'application/json'
+    service_statuses = {
+        name: {
+            "name": name,
+            "cmd": service.cmd,
+            "cwd": service.cwd,
+            "enabled": service.is_enabled,
+            "status": service.status(),
+        }
+        for name, service in services.items()
+    }
+    return json.dumps(service_statuses, ensure_ascii=False, indent=2)
+
 
 @app.route('/test_start', method=['GET', 'POST'])
 def test_start():
