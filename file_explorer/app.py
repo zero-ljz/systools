@@ -35,6 +35,9 @@ app = Bottle()
 @app.route('/')
 def index():
     return static_file('index.html', root=script_dir, mimetype='text/html')
+@app.route('/2')
+def index2():
+    return static_file('index2.html', root=script_dir, mimetype='text/html')
 
 def get_disk_partitions(only_physical_devices=True):
     """
@@ -703,6 +706,71 @@ def edit_text_file():
         file.write(content)
 
     return {"message": "File edited successfully."}
+
+
+# 获取目录属性
+@app.get("/directories/<filename:path>/attributes")
+def get_directory_attributes(filename):
+    """返回指定目录的属性信息（JSON）"""
+    directory_path = os.path.abspath(unquote(filename))
+
+    if not os.path.exists(directory_path) or not os.path.isdir(directory_path):
+        response.status = 404
+        return {"error": "Directory not found."}
+
+    file_count = 0
+    dir_count = 0
+    total_size = 0
+
+    # 遍历目录统计
+    for root, dirs, files in os.walk(directory_path):
+        dir_count += len(dirs)
+        file_count += len(files)
+        for f in files:
+            fp = os.path.join(root, f)
+            try:
+                total_size += os.path.getsize(fp)
+            except OSError:
+                continue  # 跳过无法访问的文件
+
+    # 获取目录本身的属性
+    stat_info = os.stat(directory_path)
+
+    return {
+        "directory": directory_path,
+        "file_count": file_count,
+        "dir_count": dir_count,
+        "total_size": total_size,
+        "created_at": int(stat_info.st_ctime),
+        "modified_at": int(stat_info.st_mtime)
+    }
+
+# 获取文件属性
+@app.get("/files/<filename:path>/attributes")
+def get_file_attributes(filename):
+    """返回指定文件的属性信息（JSON）"""
+    file_path = os.path.abspath(unquote(filename))
+
+    if not os.path.exists(file_path):
+        response.status = 404
+        return {"error": "File not found."}
+
+    stat_info = os.stat(file_path)
+    is_dir = os.path.isdir(file_path)
+
+    # 获取 MIME 类型
+    mime_type, _ = mimetypes.guess_type(file_path)
+
+    return {
+        "path": file_path,
+        "name": os.path.basename(file_path),
+        "size": stat_info.st_size,
+        "is_directory": is_dir,
+        "created_at": int(stat_info.st_ctime),
+        "modified_at": int(stat_info.st_mtime),
+        "accessed_at": int(stat_info.st_atime),
+        "mime_type": mime_type or "unknown"
+    }
 
 
 

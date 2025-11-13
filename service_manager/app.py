@@ -433,23 +433,25 @@ def safe_process_info(p):
     except (psutil.AccessDenied, psutil.ZombieProcess, psutil.NoSuchProcess):
         return None
 
-@app.route('/find_process')
-def find_process():
+@app.route('/processes')
+def search_process():
     cmd = request.query.cmd_line
     if cmd.isdecimal() and int(cmd) > 0:
         pid_list = [int(cmd)]
     else:
         pid_list = find_process_by_command(cmd)
 
-    # print(pid_list)
     psutil_processes = []
     for pid in pid_list:
         try:
             psutil_processes.append(psutil.Process(pid))
         except psutil.NoSuchProcess:
             pass
+
     processes = list(filter(None, map(safe_process_info, psutil_processes)))
-    return template((Path(script_dir) / 'processes.html').as_posix(), processes=processes)
+
+    response.content_type = 'application/json'
+    return json.dumps([vars(p) for p in processes], ensure_ascii=False, indent=2)
 
 @app.route('/terminate_process')
 def terminate_process():
