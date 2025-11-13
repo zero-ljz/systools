@@ -193,10 +193,6 @@ class Service:
                 except Exception:
                     pass
 
-@app.route('/')
-def index():
-    return static_file('index.html', root=script_dir, mimetype='text/html')
-
 @app.route('/services')
 def get_services():
     response.content_type = 'application/json'

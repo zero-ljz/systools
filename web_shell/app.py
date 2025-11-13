@@ -77,7 +77,7 @@ def handle_request(path=None):
             params = split_with_quotes(params[0], sep=' ')
         # command = " ".join(f'"{value}"' for value in params)
     else:
-        return static_file('index.html', root=script_dir, mimetype='text/html')
+        return 'No command specified' # 原返回index.html
     print()
     
     print(datetime.datetime.now(), 'Starting', '\n', 'cmd:', params, '\n', 'cwd:', cwd)

@@ -32,13 +32,6 @@ def has_hidden_attribute(filepath): # Windows-specific hidden file check
 
 app = Bottle()
 
-@app.route('/')
-def index():
-    return static_file('index.html', root=script_dir, mimetype='text/html')
-@app.route('/2')
-def index2():
-    return static_file('index2.html', root=script_dir, mimetype='text/html')
-
 def get_disk_partitions(only_physical_devices=True):
     """
     跨平台获取所有磁盘分区信息
