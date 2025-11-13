@@ -20,7 +20,7 @@ function renderServicemanagerPage() {
 
           <section>
     <div class="container">
-      <h1 class="title">服务管理器</h1>
+      <h2 class="title is-4">Service Manager</h2>
       <!-- 测试启动 -->
       <form method="get" id="form2" class="box">
         <div class="field">
@@ -47,17 +47,17 @@ function renderServicemanagerPage() {
       <form class="box" onsubmit="event.preventDefault(); openProcessModal();">
         <div class="field is-grouped">
           <div class="control is-expanded">
-            <input class="input" type="text" id="cmdLineInput" placeholder="Command Line 或 PID">
+            <input class="input" type="text" id="cmdLineInput" placeholder="Command Line or PID">
           </div>
           <div class="control">
-            <button class="button is-link" type="submit">查找进程</button>
+            <button class="button is-link" type="submit">Find Process</button>
           </div>
         </div>
       </form>
 
       <!-- 服务列表 -->
       <div>
-        <h2 class="title is-4">服务列表</h2>
+        <h2 class="title is-4">Service List</h2>
         <div class="level is-mobile">
   <div class="level-left">
     <div class="buttons">
@@ -85,17 +85,17 @@ function renderServicemanagerPage() {
     <div class="modal-background" onclick="closeProcessModal()"></div>
     <div class="modal-card" style="width: 95%;">
       <header class="modal-card-head">
-        <p class="modal-card-title">进程列表</p>
+        <p class="modal-card-title">Process List</p>
         <button class="delete" aria-label="close" onclick="closeProcessModal()"></button>
       </header>
       <section class="modal-card-body">
         <div class="buttons">
-          <button class="button is-danger" onclick="terminateSelected()">批量终止选中进程</button>
+          <button class="button is-danger" onclick="terminateSelected()">Terminate selected</button>
         </div>
         <div id="processTableContainer" class="table-container"></div>
       </section>
       <footer class="modal-card-foot">
-        <button class="button" onclick="closeProcessModal()">关闭</button>
+        <button class="button" onclick="closeProcessModal()">Close</button>
       </footer>
     </div>
   </div>
@@ -130,8 +130,8 @@ initPage();
         row.innerHTML = `
           <td><input type="checkbox" value="${name}"></td>
           <td><a href="#" onclick="location.href='${BASE_URL}update?name=${name}.json'; return false;">${name}</a></td>
-          <td><textarea readonly class="textarea is-small">${service.cmd}</textarea></td>
-          <td><textarea readonly class="textarea is-small">${service.cwd}</textarea></td>
+          <td><input type="text" readonly class="input is-small" value="${service.cmd}"></td>
+          <td><input type="text" readonly class="input is-small" value="${service.cwd}"></td>
           <td>${service.enabled ? '🟢' : '⚪'}</td>
           <td>${service.status}</td>
           <td>
@@ -276,7 +276,7 @@ window.closeProcessModal = closeProcessModal;
                   <td>${process.create_time}</td>
                   <td>${process.memory_percent}</td>
                   <td>
-                    <button class="button is-small is-danger" onclick="terminateProcess('${process.pid}')">终止</button>
+                    <button class="button is-small is-danger" onclick="terminateProcess('${process.pid}')">Terminate</button>
                   </td>
                 </tr>
               `).join('')}

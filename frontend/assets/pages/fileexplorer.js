@@ -6,9 +6,18 @@ PageManager.registerHooks('fileexplorer', {
     onEnter(state) {
         console.log('进入fileexplorer页', state.routeParams);
         renderFileexplorerPage();
+
+        window.addEventListener('hashchange', handleRouteChange);
+        // 首次进入时主动执行一次
+        fetchDiskList();
+        handleRouteChange();
+
     },
     onLeave() {
         console.log('离开fileexplorer页');
+
+        // 离开文件浏览器时解绑事件
+        window.removeEventListener('hashchange', handleRouteChange);
     }
 });
 
@@ -17,6 +26,8 @@ function renderFileexplorerPage() {
     if (!page) return;
 
     page.innerHTML = `
+    
+<h2 class="title is-4">File Explorer</h2>
     
 <div class="field is-grouped">
   <div class="control">
@@ -35,8 +46,6 @@ function renderFileexplorerPage() {
     <button class="button is-link" id="uploadRemoteBtn">Upload Remote File</button>
   </div>
 </div>
-
-<hr>
 
 <div id="diskLinks" style="display: flex; gap: 10px; align-items: center;"></div>
 
@@ -87,7 +96,6 @@ function renderFileexplorerPage() {
   </div>
 </div>
 
-<hr>
 
 <div id="breadcrumb"></div>
 
@@ -123,8 +131,6 @@ function renderFileexplorerPage() {
   </thead>
   <tbody></tbody>
 </table>
-
-<hr>
 
 <nav class="pagination is-centered" role="navigation" aria-label="pagination">
   <button class="pagination-previous" id="prevPage">&lt; Prev</button>
@@ -637,11 +643,7 @@ function handleRouteChange() {
   fetchFileList();
 }
 
-window.addEventListener('hashchange', handleRouteChange);
-window.addEventListener('DOMContentLoaded', () => {
-  fetchDiskList();
-  handleRouteChange();
-});
+
 
 
 window.goToParentDirectory = goToParentDirectory

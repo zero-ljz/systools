@@ -3,10 +3,7 @@ import { PageManager } from '../app.js';
 
 function renderWebShellPage(container) {
   container.innerHTML = `
- <section class="section">
-  <div class="container">
     <h2 class="title is-4">Web Shell</h2>
-
     <form id="form1">
       <div class="field is-grouped is-grouped-multiline">
         <div class="control">
@@ -59,10 +56,9 @@ function renderWebShellPage(container) {
       </div>
 
     </form>
-  </div>
-</section>
   `;
 
+  textareaCount = 0; // 重新渲染页面后重置 textarea 计数器
   // 初始化逻辑
   loadFormData();
 }
@@ -88,6 +84,16 @@ function addParam() {
             newTextArea.style.display = 'block';
             newTextArea.style.margin = '0.5rem 0';
             newTextArea.classList.add('textarea');
+            newTextArea.rows = 1;
+            // 禁止用户拖拽调整大小
+            newTextArea.style.resize = 'none';
+            newTextArea.style.overflow = 'hidden';
+            // 拦截回车键
+            newTextArea.addEventListener("keydown", function(event) {
+              if (event.key === "Enter") {
+                event.preventDefault(); // 阻止换行
+              }
+            });
 
             // 加载保存的记录
             newTextArea.value = sessionStorage.getItem(paramName)
@@ -242,7 +248,7 @@ function addParam() {
 
 
 // 定义全局变量用于记录已存在的 textarea 控件数量
-        let textareaCount = 0;
+let textareaCount = 0;
 const BASE_URL = getBaseUrl() + 'web_shell/';
 
 // 注册页面生命周期钩子
