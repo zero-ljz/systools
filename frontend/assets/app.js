@@ -1,4 +1,80 @@
 
+/* ===========================
+   全局状态管理 useAppState（保持接口与行为）
+   - getState / setState / subscribe / reset / log
+   - 优化：subscribe 初次触发仍保留，但保证每个订阅者只被添加一次（Set）
+   =========================== */
+const useAppState = (() => {
+    // 初始 state（与原始保持一致）
+    const state = {
+        currentPage: 'home',
+        theme: 'light',
+        user: null,
+        notifications: [],
+        windows: [],
+        plugins: {},
+    };
+
+    const listeners = new Set();
+
+    function getState() {
+        // 返回浅拷贝，避免外部直接修改内部 state
+        return { ...state };
+    }
+
+    function setState(partial, silent = false) {
+        if (!partial || typeof partial !== 'object') return;
+        Object.assign(state, partial);
+        if (!silent) notify();
+    }
+
+    function subscribe(fn) {
+        if (typeof fn !== 'function') return () => {};
+        listeners.add(fn);
+        try {
+            fn(getState()); // 初次触发（保留原行为）
+        } catch (err) {
+            console.error('useAppState subscriber initial call error:', err);
+        }
+        return () => listeners.delete(fn);
+    }
+
+    function notify() {
+        const snapshot = getState();
+        // 用 for-of 保证同步调用并捕获每个 listener 的异常
+        for (const fn of Array.from(listeners)) {
+            try {
+                fn(snapshot);
+            } catch (err) {
+                // 单个 listener 抛错不影响其他 listener
+                console.error('useAppState subscriber error:', err);
+            }
+        }
+    }
+
+    function reset(keys = []) {
+        if (!Array.isArray(keys)) return;
+        keys.forEach(k => {
+            if (k in state) state[k] = null;
+        });
+        notify();
+    }
+
+    function log() {
+        console.log('🧠 AppState:', getState());
+    }
+
+    return {
+        getState,
+        setState,
+        subscribe,
+        reset,
+        log,
+    };
+})();
+
+
+
 /* -------- 导航数据（保持不变） -------- */
 const navData = [
     { icon: '🏠', label: '首页', page: 'home' },
@@ -6,12 +82,147 @@ const navData = [
     { icon: '🌐', label: 'Web Shell', page: 'webshell' },
     { icon: '🔧', label: 'Service Manager', page: 'servicemanager' },
     { icon: '📊', label: 'Sysinfo', page: 'sysinfo' },
-
-    { icon: '📁', label: '文件', page: 'files' },
-    { icon: '⚙️', label: '设置', page: 'settings' },
-    { icon: '🔔', label: '通知', page: 'notify' },
-    { icon: '❓', label: '帮助', page: 'help' },
 ];
+
+/* ===========================
+   路由 Router（保持原逻辑）
+   - parseHashRoute / handleHashChange / navigateTo / init
+   - 优化：对 hash 解析增加健壮性
+   =========================== */
+const Router = (() => {
+    const validPages = navData.map(item => item.page);
+    const defaultPage = 'home';
+
+    function parseHashRoute() {
+        // 支持空 hash
+        const rawHash = window.location.hash || '';
+        const hash = rawHash.slice(2); // 去掉 "#/"
+        if (!hash) return { page: defaultPage, subpath: null, params: {} };
+
+        const [pathPart = '', queryPart = ''] = hash.split('?');
+        const pathSegments = pathPart.split('/').filter(Boolean);
+        const page = pathSegments[0] || defaultPage;
+        const subpath = pathSegments[1] || null;
+
+        const params = {};
+        if (queryPart) {
+            queryPart.split('&').forEach(pair => {
+                const [key, value] = pair.split('=');
+                if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+            });
+        }
+
+        return { page, subpath, params };
+    }
+
+    function handleHashChange() {
+        const { page, subpath, params } = parseHashRoute();
+        const targetPage = validPages.includes(page) ? page : defaultPage;
+
+        // 更新状态管理器（与原逻辑一致）
+        useAppState.setState({
+            currentPage: targetPage,
+            subpath,
+            routeParams: params,
+        });
+
+        // 关闭 Dock 菜单（原逻辑）
+        document.getElementById('dock-menu')?.classList.add('hidden');
+    }
+
+    function navigateTo(page, params = {}, subpath = null) {
+        // 保持你原来的 query 拼接方式
+        const query = Object.entries(params)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join('&');
+        const path = `#/${page}${subpath ? '/' + subpath : ''}${query ? '?' + query : ''}`;
+        window.location.hash = path;
+    }
+
+    function init() {
+        window.addEventListener('hashchange', handleHashChange);
+        handleHashChange(); // 首次加载触发（保留原行为）
+    }
+
+    return {
+        init,
+        navigateTo,
+    };
+})();
+
+
+/* ===========================
+   页面管理 PageManager（生命周期钩子保留）
+   - registerHooks / showPage / handlePageChange / init
+   - 优化：避免重复 showPage 操作
+   =========================== */
+const PageManager = (() => {
+    let currentPage = null;
+
+    // 页面生命周期钩子（可选）
+    const pageHooks = {
+        // 'files': { onEnter: fn, onLeave: fn }
+    };
+
+    function registerHooks(page, { onEnter, onLeave }) {
+        pageHooks[page] = { onEnter, onLeave };
+    }
+
+    function showPage(pageName) {
+        // 只在页面实际有变更时操作 DOM（减少不必要操作）
+        document.querySelectorAll('.page').forEach(p => {
+            p.style.display = p.dataset.page === pageName ? 'block' : 'none';
+        });
+    }
+
+    function handlePageChange(state) {
+        const nextPage = state.currentPage;
+        if (!nextPage || nextPage === currentPage) return;
+
+        // 调用 onLeave 钩子（保持原行为）
+        if (currentPage && pageHooks[currentPage]?.onLeave) {
+            try { pageHooks[currentPage].onLeave(state); } catch (err) { console.error(err); }
+        }
+
+        // 切换页面视图
+        showPage(nextPage);
+
+        // 调用 onEnter 钩子（保持原行为）
+        if (pageHooks[nextPage]?.onEnter) {
+            try { pageHooks[nextPage].onEnter(state); } catch (err) { console.error(err); }
+        }
+
+        currentPage = nextPage;
+    }
+
+    function init() {
+        useAppState.subscribe(handlePageChange);
+    }
+
+    return {
+        init,
+        registerHooks,
+    };
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* ===========================
@@ -148,213 +359,6 @@ function toggleDockMenu() {
 })();
 
 
-/* ===========================
-   全局状态管理 useAppState（保持接口与行为）
-   - getState / setState / subscribe / reset / log
-   - 优化：subscribe 初次触发仍保留，但保证每个订阅者只被添加一次（Set）
-   =========================== */
-const useAppState = (() => {
-    // 初始 state（与原始保持一致）
-    const state = {
-        currentPage: 'home',
-        theme: 'light',
-        user: null,
-        notifications: [],
-        windows: [],
-        plugins: {},
-    };
-
-    const listeners = new Set();
-
-    function getState() {
-        // 返回浅拷贝，避免外部直接修改内部 state
-        return { ...state };
-    }
-
-    function setState(partial, silent = false) {
-        if (!partial || typeof partial !== 'object') return;
-        Object.assign(state, partial);
-        if (!silent) notify();
-    }
-
-    function subscribe(fn) {
-        if (typeof fn !== 'function') return () => {};
-        listeners.add(fn);
-        try {
-            fn(getState()); // 初次触发（保留原行为）
-        } catch (err) {
-            console.error('useAppState subscriber initial call error:', err);
-        }
-        return () => listeners.delete(fn);
-    }
-
-    function notify() {
-        const snapshot = getState();
-        // 用 for-of 保证同步调用并捕获每个 listener 的异常
-        for (const fn of Array.from(listeners)) {
-            try {
-                fn(snapshot);
-            } catch (err) {
-                // 单个 listener 抛错不影响其他 listener
-                console.error('useAppState subscriber error:', err);
-            }
-        }
-    }
-
-    function reset(keys = []) {
-        if (!Array.isArray(keys)) return;
-        keys.forEach(k => {
-            if (k in state) state[k] = null;
-        });
-        notify();
-    }
-
-    function log() {
-        console.log('🧠 AppState:', getState());
-    }
-
-    return {
-        getState,
-        setState,
-        subscribe,
-        reset,
-        log,
-    };
-})();
-
-
-/* ===========================
-   路由 Router（保持原逻辑）
-   - parseHashRoute / handleHashChange / navigateTo / init
-   - 优化：对 hash 解析增加健壮性
-   =========================== */
-const Router = (() => {
-    const validPages = navData.map(item => item.page);
-    const defaultPage = 'home';
-
-    function parseHashRoute() {
-        // 支持空 hash
-        const rawHash = window.location.hash || '';
-        const hash = rawHash.slice(2); // 去掉 "#/"
-        if (!hash) return { page: defaultPage, subpath: null, params: {} };
-
-        const [pathPart = '', queryPart = ''] = hash.split('?');
-        const pathSegments = pathPart.split('/').filter(Boolean);
-        const page = pathSegments[0] || defaultPage;
-        const subpath = pathSegments[1] || null;
-
-        const params = {};
-        if (queryPart) {
-            queryPart.split('&').forEach(pair => {
-                const [key, value] = pair.split('=');
-                if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
-            });
-        }
-
-        return { page, subpath, params };
-    }
-
-    function handleHashChange() {
-        const { page, subpath, params } = parseHashRoute();
-        const targetPage = validPages.includes(page) ? page : defaultPage;
-
-        // 更新状态管理器（与原逻辑一致）
-        useAppState.setState({
-            currentPage: targetPage,
-            subpath,
-            routeParams: params,
-        });
-
-        // 关闭 Dock 菜单（原逻辑）
-        document.getElementById('dock-menu')?.classList.add('hidden');
-    }
-
-    function navigateTo(page, params = {}, subpath = null) {
-        // 保持你原来的 query 拼接方式
-        const query = Object.entries(params)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join('&');
-        const path = `#/${page}${subpath ? '/' + subpath : ''}${query ? '?' + query : ''}`;
-        window.location.hash = path;
-    }
-
-    function init() {
-        window.addEventListener('hashchange', handleHashChange);
-        handleHashChange(); // 首次加载触发（保留原行为）
-    }
-
-    return {
-        init,
-        navigateTo,
-    };
-})();
-
-
-/* ===========================
-   页面管理 PageManager（生命周期钩子保留）
-   - registerHooks / showPage / handlePageChange / init
-   - 优化：避免重复 showPage 操作
-   =========================== */
-const PageManager = (() => {
-    let currentPage = null;
-
-    // 页面生命周期钩子（可选）
-    const pageHooks = {
-        // 'files': { onEnter: fn, onLeave: fn }
-    };
-
-    function registerHooks(page, { onEnter, onLeave }) {
-        pageHooks[page] = { onEnter, onLeave };
-    }
-
-    function showPage(pageName) {
-        // 只在页面实际有变更时操作 DOM（减少不必要操作）
-        document.querySelectorAll('.page').forEach(p => {
-            p.style.display = p.dataset.page === pageName ? 'block' : 'none';
-        });
-    }
-
-    function handlePageChange(state) {
-        const nextPage = state.currentPage;
-        if (!nextPage || nextPage === currentPage) return;
-
-        // 调用 onLeave 钩子（保持原行为）
-        if (currentPage && pageHooks[currentPage]?.onLeave) {
-            try { pageHooks[currentPage].onLeave(state); } catch (err) { console.error(err); }
-        }
-
-        // 切换页面视图
-        showPage(nextPage);
-
-        // 调用 onEnter 钩子（保持原行为）
-        if (pageHooks[nextPage]?.onEnter) {
-            try { pageHooks[nextPage].onEnter(state); } catch (err) { console.error(err); }
-        }
-
-        currentPage = nextPage;
-    }
-
-    function init() {
-        useAppState.subscribe(handlePageChange);
-    }
-
-    return {
-        init,
-        registerHooks,
-    };
-})();
-
-/* 注册 files 页面钩子（与你的原始实现一致） */
-PageManager.registerHooks('files', {
-    onEnter: (state) => {
-        console.log('📂 进入文件页，参数：', state.routeParams);
-    },
-    onLeave: () => {
-        console.log('📁 离开文件页');
-    }
-});
-
-
 
 /* ===========================
    Toast 通知系统（保持 API 与行为）
@@ -415,7 +419,11 @@ const Toast = (() => {
 
     // 启动页面管理与路由
     PageManager.init();
-    Router.init();
+    
+    // ✅ 延后 Router.init() 到 DOM 完成渲染之后
+    window.addEventListener('DOMContentLoaded', () => {
+        Router.init();
+    });
 
     // 保留你原有的 Toast 显示调用（示例用）
     Toast.info('这是一个信息提示');

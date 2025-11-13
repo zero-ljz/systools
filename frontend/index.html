@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>响应式桌面风格 SPA</title>
+  <title>Sys Tools</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" />
+  <script src="https://gcore.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <link rel="stylesheet" href="./assets/style.css" />
+  <link rel="icon" href="data:," />
 </head>
 
 <body>
@@ -16,11 +20,11 @@
 
     <main class="main" id="main-content">
       <div class="page" data-page="home">🏠 首页内容</div>
-      <div class="page" data-page="files" style="display:none;">📁 文件内容</div>
-      <div class="page" data-page="settings" style="display:none;">⚙️ 设置内容</div>
-      <div class="page" data-page="notify" style="display:none;">🔔 通知内容</div>
-      <div class="page" data-page="help" style="display:none;">❓ 帮助内容</div>
-      <div class="page" data-page="webshell" style="display:none;">🧩 Web Shell</div>
+      <div class="page" data-page="fileexplorer" style="display:none;">📁 文件浏览器内容</div>
+      <div class="page" data-page="webshell" style="display:none;"></div>
+      <div class="page" data-page="servicemanager" style="display:none;"></div>
+      <div class="page" data-page="sysinfo" style="display:none;"></div>
+
     </main>
 
     <aside class="sidebar">
@@ -42,9 +46,7 @@
         <div class="widget notify-widget">
           <h3>通知中心</h3>
           <ul id="notify-list">
-            <li>🔔 欢迎使用桌面应用框架</li>
-            <li>📦 新版本已发布：v1.2.3</li>
-            <li>⚠️ 网络连接不稳定</li>
+            <li>🔔 欢迎使用</li>
           </ul>
         </div>
       </div>
@@ -55,7 +57,10 @@
   <div id="dock-menu" class="dock-menu hidden"></div>
 
   <script type="module" src="./assets/app.js"></script>
-  <script type="module" src="./assets/pages/files.js"></script>
+  <script type="module" src="./assets/pages/fileexplorer.js"></script>
   <script type="module" src="./assets/pages/webshell.js"></script>
+  <script type="module" src="./assets/pages/servicemanager.js"></script>
+  <script type="module" src="./assets/pages/sysinfo.js"></script>
+
 </body>
 </html>
