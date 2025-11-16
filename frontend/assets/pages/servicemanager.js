@@ -50,7 +50,10 @@ function renderServicemanagerPage() {
             <input class="input" type="text" id="cmdLineInput" placeholder="Command Line or PID">
           </div>
           <div class="control">
-            <button class="button is-link" type="submit">Find Process</button>
+            <!-- Find -->
+            <button class="button is-info">
+              <span class="icon"><i class="fas fa-search"></i></span>
+            </button>
           </div>
         </div>
       </form>
@@ -61,12 +64,18 @@ function renderServicemanagerPage() {
         <div class="level is-mobile">
   <div class="level-left">
     <div class="buttons">
-      <button class="button is-success" value="Start">Start</button>
-      <button class="button is-danger" value="Stop">Stop</button>
+      <button class="button is-success" value="Start">
+  <span class="icon"><i class="fas fa-play"></i></span>
+</button>
+     <button class="button is-danger" value="Stop">
+  <span class="icon"><i class="fas fa-stop"></i></span>
+</button>
     </div>
   </div>
   <div class="level-right">
-    <button class="button is-primary" value="Add">Add</button>
+    <button class="button is-primary" value="Add">
+  <span class="icon"><i class="fas fa-plus"></i></span>
+</button>
   </div>
 </div>
         <div class="table-container">
@@ -109,6 +118,7 @@ initPage();
    function createServiceTable(services) {
       let table = document.createElement('table');
       table.className = 'table is-striped is-fullwidth';
+      table.id = 'serviceTable';
       table.innerHTML = `
         <thead>
           <tr>
@@ -140,24 +150,26 @@ initPage();
               (() => {
                 fetch('${BASE_URL}${service.status.startsWith('running') ? 'stop' : 'start'}?name=' + encodeURIComponent('${name}'))
                 .then(async resp => { alert(await resp.text()); this.disabled = false; location.reload(); });
-              })();">${service.status.startsWith('running') ? 'Stop' : 'Start'}</button>
+              })();">${service.status.startsWith('running') ? '<span class="icon"><i class="fas fa-stop"></i></span>' : '<span class="icon"><i class="fas fa-play"></i></span>'}</button>
             <button class="button is-small is-danger" onclick="
               if (!confirm('你确定吗？')) return;
               this.disabled = true;
               (() => {
                 fetch('${BASE_URL}delete?name=' + encodeURIComponent('${name}.json'))
                 .then(async resp => { alert(await resp.text()); this.disabled = false; location.reload(); });
-              })();">Delete</button>
+              })();"><span class="icon"><i class="fas fa-trash"></i></span></button>
           </td>
           <td>
-            <a class="button is-small is-link" href="${BASE_URL}log_view?name=${name}.json">View</a>
+            <a class="button is-small is-link" href="${BASE_URL}log_view?name=${name}.json">
+              <span class="icon"><i class="fas fa-eye"></i></span>
+            </a>
             <button class="button is-small is-warning" onclick="
               if (!confirm('你确定吗？')) return;
               this.disabled = true;
               (() => {
                 fetch('${BASE_URL}clear_log?name=' + encodeURIComponent('${name}.json'))
                 .then(async resp => { alert(await resp.text()); this.disabled = false; location.reload(); });
-              })();">Clear</button>
+              })();"><span class="icon"><i class="fas fa-eraser"></i></span></button>
           </td>
         `;
         tbody.appendChild(row);
@@ -174,9 +186,6 @@ initPage();
 
 
 function initPage() {
-
- 
-
     fetch(BASE_URL + `services`)
       .then(response => response.json())
       .then(data => {
@@ -191,7 +200,7 @@ function initPage() {
     });
 
     document.querySelector('button[value="Start"]').addEventListener('click', () => {
-      const names = Array.from(document.querySelectorAll('table tbody input[type=checkbox]:checked')).map(cb => cb.value);
+      const names = Array.from(document.querySelectorAll('table#serviceTable tbody input[type=checkbox]:checked')).map(cb => cb.value);
       if (names.length === 0) return alert('你还没有选择任何一项');
       if (!confirm(`已选择 ${names.length} 项，确定启动？`)) return;
       fetch(BASE_URL + 'start?name=' + encodeURIComponent(names.join(',')))
@@ -199,7 +208,7 @@ function initPage() {
     });
 
     document.querySelector('button[value="Stop"]').addEventListener('click', () => {
-      const names = Array.from(document.querySelectorAll('table tbody input[type=checkbox]:checked')).map(cb => cb.value);
+      const names = Array.from(document.querySelectorAll('table#serviceTable tbody input[type=checkbox]:checked')).map(cb => cb.value);
       if (names.length === 0) return alert('你还没有选择任何一项');
       if (!confirm(`已选择 ${names.length} 项，确定停止？`)) return;
       fetch(BASE_URL + 'stop?name=' + encodeURIComponent(names.join(',')))

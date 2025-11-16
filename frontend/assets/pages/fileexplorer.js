@@ -99,23 +99,48 @@ function renderFileexplorerPage() {
 
 <div id="breadcrumb"></div>
 
+<!-- 路径导航区 -->
 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-  <button class="button" onclick="history.back()">←</button>
-  <button class="button" onclick="history.forward()">→</button>
-  <button class="button is-light" onclick="goToDirectory('/')">/</button>
-  <button class="button is-light" onclick="goToParentDirectory()">../</button>&nbsp;&nbsp;
+  <!-- 左边导航按钮 -->
+  <button class="button" onclick="history.back()">
+    <span class="icon"><i class="fas fa-arrow-left"></i></span>
+  </button>
+  <button class="button" onclick="history.forward()">
+    <span class="icon"><i class="fas fa-arrow-right"></i></span>
+  </button>
+  <button class="button is-light" onclick="goToDirectory('/')">
+    <span class="icon"><i class="fas fa-home"></i></span>
+  </button>
+  <button class="button is-light" onclick="goToParentDirectory()">
+    <span class="icon"><i class="fas fa-level-up-alt"></i></span>
+  </button>
 
-  <button class="button is-link" id="copySelected">Copy</button>
-  <button class="button is-warning" id="moveSelected">Move</button>
-  <button class="button is-danger" id="deleteSelected">Delete</button>
-  <button class="button is-link" id="packSelected">Pack</button>&nbsp;&nbsp;
-
-  <input class="input" type="text" id="pathInput" style="flex: 1; min-width: 100px; max-width: 600px;" placeholder="Enter path">
-  <button class="button is-light" onclick="goToInputPath()">Go</button>&nbsp;&nbsp;
-
-  <button class="button is-primary" onclick="createFile()">New File</button>
-  <button class="button is-primary" onclick="createDirectory()">New Folder</button>
+  <!-- 右边输入框 + Go -->
+  <div style="display:flex; gap:10px; margin-left:auto; flex:1;">
+    <input class="input is-expanded" type="text" id="pathInput" placeholder="Enter path">
+    <button class="button is-light" onclick="goToInputPath()">
+      <span class="icon"><i class="fas fa-arrow-circle-right"></i></span>
+    </button>
+  </div>
 </div>
+
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+  <!-- 左边多选操作按钮 -->
+  <div class="buttons mb-0">
+    <button class="button is-link" id="copySelected"><span class="icon"><i class="fas fa-copy"></i></span></button>
+    <button class="button is-warning" id="moveSelected"><span class="icon"><i class="fas fa-arrows-alt"></i></span></button>
+    <button class="button is-danger" id="deleteSelected"><span class="icon"><i class="fas fa-trash"></i></span></button>
+    <button class="button is-link" id="packSelected"><span class="icon"><i class="fas fa-file-archive"></i></span></button>
+  </div>
+
+  <!-- 右边新建按钮 -->
+  <div class="buttons mb-0">
+    <button class="button is-primary" onclick="createFile()"><span class="icon"><i class="fas fa-file"></i></span></button>
+    <button class="button is-primary" onclick="createDirectory()"><span class="icon"><i class="fas fa-folder"></i></span></button>
+  </div>
+</div>
+
 
 <table style="width: 100%; border-collapse: collapse; margin-top: 10px;" class="table is-striped is-hoverable is-fullwidth" id="fileTable">
   <thead>
@@ -436,7 +461,7 @@ function unpackFiles(path) {
 }
 
 function getSelectedFiles() {
-  return Array.from(document.querySelectorAll('#fileTable tbody input[type="checkbox"]:checked'))
+  return Array.from(document.querySelectorAll('table#fileTable tbody input[type="checkbox"]:checked'))
     .map(cb => cb.dataset.path);
 }
 

@@ -25,14 +25,14 @@ function renderWebShellPage(container) {
       </div>
 
       <div class="field">
-        <label class="checkbox">
+        <div class="buttons">
+          <button class="button is-link" type="button" value="RunCMD">Run</button>
+          <button class="button is-success" type="button" value="AddParam" tabindex="-1">+</button>
+          <button class="button is-danger" type="button" value="RemoveParam" tabindex="-1">-</button>
+          <label class="checkbox">
           <input id="uriComponentEncoding" type="checkbox"> Encoding
-        </label>
-      </div>
-
-      <div class="buttons">
-        <button class="button is-info" type="button" value="QueryMode">Query Mode</button>
-        <button class="button is-link" type="button" value="PathMode">Path Mode</button>
+          </label>
+        </div>
       </div>
 
       <div class="field is-grouped">
@@ -45,14 +45,9 @@ function renderWebShellPage(container) {
           </datalist>
         </div>
         <div class="control">
-          <button class="button is-light" type="button" value="ReSelect" tabindex="-1">ReSelect</button>
+          <button class="button is-light" type="button" value="Clear" tabindex="-1">Clear</button>
         </div>
-        <div class="control">
-          <button class="button is-success" type="button" value="AddParam" tabindex="-1">+</button>
-        </div>
-        <div class="control">
-          <button class="button is-danger" type="button" value="RemoveParam" tabindex="-1">-</button>
-        </div>
+        
       </div>
 
     </form>
@@ -63,13 +58,11 @@ function renderWebShellPage(container) {
   loadFormData();
 }
 
- function queryMode() {
+
+function runCMD() {
     let q; q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; saveFormData(); window.location.href = q;
 }
-function pathMode() {
-    let q; q = prompt('Please confirm the jump target:', BASE_URL + genURL(2, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; saveFormData(); window.location.href = q;
-}
-function reSelect() {
+function clear() {
     document.getElementById('0').value = '';
 }
 
@@ -261,9 +254,8 @@ PageManager.registerHooks('webshell', {
 
     
 const form = document.getElementById('form1');
-        form.querySelector('button[value="QueryMode"]').addEventListener('click', queryMode);
-        form.querySelector('button[value="PathMode"]').addEventListener('click', pathMode);
-        form.querySelector('button[value="ReSelect"]').addEventListener('click', reSelect);
+        form.querySelector('button[value="RunCMD"]').addEventListener('click', runCMD);
+        form.querySelector('button[value="Clear"]').addEventListener('click', clear);
         form.querySelector('button[value="AddParam"]').addEventListener('click', addParam);
         form.querySelector('button[value="RemoveParam"]').addEventListener('click', removeParam);
 
