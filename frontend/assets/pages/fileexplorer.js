@@ -102,8 +102,8 @@ function renderFileexplorerPage() {
 <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
   <button class="button" onclick="history.back()">←</button>
   <button class="button" onclick="history.forward()">→</button>
-  <button class="button is-light" onclick="goToParentDirectory()">../</button>
-  <button class="button is-light" onclick="goToDirectory('/')">/</button>&nbsp;&nbsp;
+  <button class="button is-light" onclick="goToDirectory('/')">/</button>
+  <button class="button is-light" onclick="goToParentDirectory()">../</button>&nbsp;&nbsp;
 
   <button class="button is-link" id="copySelected">Copy</button>
   <button class="button is-warning" id="moveSelected">Move</button>
@@ -242,7 +242,7 @@ function renderFileTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="checkbox" data-path="${file.path}"></td>
-      <td>${file.is_directory ? `<a href="#/fileexplorer/directory/${file.path}">${file.name}</a>` : file.name}</td>
+      <td>${file.is_directory ? `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABt0lEQVR42oxStZoWQRCs2cXdHTLcHZ6EjAwnQWIkJyQlRt4Cd3d3d1n5d7q7ju1zv/q+mh6taQsk8fn29kPDRo87SDMQcNAUJgIQkBjdAoRKdXjm2mOH0AqS+PlkP8sfp0h93iu/PDji9s2FzSSJVg5ykZqWgfGRr9rAAAQiDFoB1OfyESZEB7iAI0lHwLREQBcQQKqo8p+gNUCguwCNAAUQAcFOb0NNGjT+BbUC2YsHZpWLhC6/m0chqIoM1LKbQIIBwlTQE1xAo9QDGDPYf6rkTpPc92gCUYVJAZjhyZltJ95f3zuvLYRGWWCUNkDL2333McBh4kaLlxg+aTmyL7c2xTjkN4Bt7oE3DBP/3SRz65R/bkmBRPGzcRNHYuzMjaj+fdnaFoJUEdTSXfaHbe7XNnMPyqryPcmfY+zURaAB7SHk9cXSH4fQ5rojgCAVIuqCNWgRhLYLhJB4k3iZfIPtnQiCpjAzeBIRXMA6emAqoEbQSoDdGxFUrxS1AYcpaNbBgyQBGJEOnYOeENKR/iAd1npusI4C75/c3539+nbUjOgZV5CkAU27df40lH+agUdIuA/EAgDmZnwZlhDc0wAAAABJRU5ErkJggg=="> <a class="dir" href="#/fileexplorer/directory/${file.path}">${file.name}</a>` : `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAABnRSTlMAAAAAAABupgeRAAABEElEQVR42nRRx3HDMBC846AHZ7sP54BmWAyrsP588qnwlhqw/k4v5ZwWxM1hzmGRgV1cYqrRarXoH2w2m6qqiqKIR6cPtzc3xMSML2Te7XZZlnW7Pe/91/dX47WRBHuA9oyGmRknzGDjab1ePzw8bLfb6WRalmW4ip9FDVpYSWZgOp12Oh3nXJ7nxoJSGEciteP9y+fH52q1euv38WosqA6T2gGOT44vry7BEQtJkMAMMpa6JagAMcUfWYa4hkkzAc7fFlSjwqCoOUYAF5RjHZPVCFBOtSBGfgUDji3c3jpibeEMQhIMh8NwshqyRsBJgvF4jMs/YlVR5KhgNpuBLzk0OcUiR3CMhcPaOzsZiAAA/AjmaB3WZIkAAAAASUVORK5CYII="> <a data-path="${file.path}" onclick="previewFile(this.dataset.path)">${file.name}</a>`}</td>
       <td>${file.is_directory ? 'Folder' : 'File'}</td>
       <td>${file.is_directory ? '' : formatSize(file.size)}</td>
       <td>${formatDate(file.modified_at)}</td>
@@ -435,143 +435,142 @@ function cancelEdit() {
 }
 
 function initializeFileExplorer() {
+  document.getElementById('saveEdit').onclick = () => {
+    const form = new FormData();
+    form.append('file_path', state.selectedFilePath);
+    form.append('content', document.getElementById('editContent').value);
+    fetch(BASE_URL + 'files/edit', { method: 'POST', body: form })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
+        fetchFileList();
+      });
+  };
 
-document.getElementById('saveEdit').onclick = () => {
-  const form = new FormData();
-  form.append('file_path', state.selectedFilePath);
-  form.append('content', document.getElementById('editContent').value);
-  fetch(BASE_URL + 'files/edit', { method: 'POST', body: form })
-    .then(res => res.json())
-    .then(data => {
-      alert(data.message);
+  document.getElementById('uploadBtn').onclick = () => {
+    const input = document.getElementById('fileInput');
+    const files = Array.from(input.files);
+    if (files.length === 0) return alert('No files selected');
+    const form = new FormData();
+    files.forEach(f => form.append('files', f));
+    form.append('directory', state.currentDirectory);
+    axios.post(BASE_URL + 'files/upload', form).then(res => {
+      alert(res.data.message);
+      fetchFileList();
+      input.value = null;
+    });
+  };
+
+  document.getElementById('uploadRemoteBtn').onclick = () => {
+    const url = document.getElementById('remoteURL').value;
+    if (!url) return alert('Enter a URL');
+    axios.post(BASE_URL + 'files/upload/remote', {
+      directory: state.currentDirectory,
+      url: url
+    }).then(res => {
+      alert(res.data.message);
       fetchFileList();
     });
-};
+  };
 
-document.getElementById('uploadBtn').onclick = () => {
-  const input = document.getElementById('fileInput');
-  const files = Array.from(input.files);
-  if (files.length === 0) return alert('No files selected');
-  const form = new FormData();
-  files.forEach(f => form.append('files', f));
-  form.append('directory', state.currentDirectory);
-  axios.post(BASE_URL + 'files/upload', form).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-    input.value = null;
-  });
-};
-
-document.getElementById('uploadRemoteBtn').onclick = () => {
-  const url = document.getElementById('remoteURL').value;
-  if (!url) return alert('Enter a URL');
-  axios.post(BASE_URL + 'files/upload/remote', {
-    directory: state.currentDirectory,
-    url: url
-  }).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-  });
-};
-
-document.getElementById('selectAll').onchange = (e) => {
-  const checked = e.target.checked;
-  document.querySelectorAll('#fileTable tbody input[type="checkbox"]').forEach(cb => {
-    cb.checked = checked;
-  });
-};
+  document.getElementById('selectAll').onchange = (e) => {
+    const checked = e.target.checked;
+    document.querySelectorAll('#fileTable tbody input[type="checkbox"]').forEach(cb => {
+      cb.checked = checked;
+    });
+  };
 
 
-document.getElementById('copySelected').onclick = () => {
-  const files = getSelectedFiles();
-  if (files.length === 0) return alert('No files selected');
-  const dest = prompt('Enter destination path:');
-  if (!dest) return;
-  axios.post(BASE_URL + 'files/copy', { files, destination: dest }).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-  });
-};
+  document.getElementById('copySelected').onclick = () => {
+    const files = getSelectedFiles();
+    if (files.length === 0) return alert('No files selected');
+    const dest = prompt('Enter destination path:');
+    if (!dest) return;
+    axios.post(BASE_URL + 'files/copy', { files, destination: dest }).then(res => {
+      alert(res.data.message);
+      fetchFileList();
+    });
+  };
 
-document.getElementById('moveSelected').onclick = () => {
-  const files = getSelectedFiles();
-  if (files.length === 0) return alert('No files selected');
-  const dest = prompt('Enter destination path:');
-  if (!dest) return;
-  axios.post(BASE_URL + 'files/move', { files, destination: dest }).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-  });
-};
+  document.getElementById('moveSelected').onclick = () => {
+    const files = getSelectedFiles();
+    if (files.length === 0) return alert('No files selected');
+    const dest = prompt('Enter destination path:');
+    if (!dest) return;
+    axios.post(BASE_URL + 'files/move', { files, destination: dest }).then(res => {
+      alert(res.data.message);
+      fetchFileList();
+    });
+  };
 
-document.getElementById('deleteSelected').onclick = () => {
-  const files = getSelectedFiles();
-  if (files.length === 0) return alert('No files selected');
-  if (!confirm(`Delete ${files.length} selected items?`)) return;
-  axios.post(BASE_URL + 'files/delete', { files }).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-  });
-};
+  document.getElementById('deleteSelected').onclick = () => {
+    const files = getSelectedFiles();
+    if (files.length === 0) return alert('No files selected');
+    if (!confirm(`Delete ${files.length} selected items?`)) return;
+    axios.post(BASE_URL + 'files/delete', { files }).then(res => {
+      alert(res.data.message);
+      fetchFileList();
+    });
+  };
 
-document.getElementById('packSelected').onclick = () => {
-  const files = getSelectedFiles();
-  if (files.length === 0) return alert('No files selected');
-  const archive = prompt('Enter archive filename:\n Supported extensions: ' + state.supportedExtensions.join(', '), state.currentDirectory + '/archive.zip');
-  if (!archive) return;
-  axios.post(BASE_URL + 'files/pack', {
-    files,
-    archive_filename: archive
-  }).then(res => {
-    alert(res.data.message);
-    fetchFileList();
-  });
-};
+  document.getElementById('packSelected').onclick = () => {
+    const files = getSelectedFiles();
+    if (files.length === 0) return alert('No files selected');
+    const archive = prompt('Enter archive filename:\n Supported extensions: ' + state.supportedExtensions.join(', '), state.currentDirectory + '/archive.zip');
+    if (!archive) return;
+    axios.post(BASE_URL + 'files/pack', {
+      files,
+      archive_filename: archive
+    }).then(res => {
+      alert(res.data.message);
+      fetchFileList();
+    });
+  };
 
-document.getElementById('prevPage').onclick = () => {
-  if (state.page > 1) {
-    state.page--;
+  document.getElementById('prevPage').onclick = () => {
+    if (state.page > 1) {
+      state.page--;
+      goToDirectory(state.currentDirectory, state.page, state.perPage);
+    }
+  };
+
+  document.getElementById('nextPage').onclick = () => {
+    if (state.page < state.totalPages) {
+      state.page++;
+      goToDirectory(state.currentDirectory, state.page, state.perPage);
+    }
+  };
+
+  document.getElementById('perPage').onchange = (e) => {
+    state.perPage = parseInt(e.target.value) || 100;
+    state.page = 1;
     goToDirectory(state.currentDirectory, state.page, state.perPage);
-  }
-};
+  };
 
-document.getElementById('nextPage').onclick = () => {
-  if (state.page < state.totalPages) {
-    state.page++;
-    goToDirectory(state.currentDirectory, state.page, state.perPage);
-  }
-};
+  document.getElementById('keyword').oninput = (e) => {
+    state.keyword = e.target.value;
+    fetchFileList();
+  };
 
-document.getElementById('perPage').onchange = (e) => {
-  state.perPage = parseInt(e.target.value) || 100;
-  state.page = 1;
-  goToDirectory(state.currentDirectory, state.page, state.perPage);
-};
+  document.getElementById('fileType').onchange = (e) => {
+    state.fileType = e.target.value;
+    fetchFileList();
+  };
 
-document.getElementById('keyword').oninput = (e) => {
-  state.keyword = e.target.value;
-  fetchFileList();
-};
+  document.getElementById('showHidden').onchange = (e) => {
+    state.showHidden = e.target.checked;
+    fetchFileList();
+  };
 
-document.getElementById('fileType').onchange = (e) => {
-  state.fileType = e.target.value;
-  fetchFileList();
-};
+  document.getElementById('sortBy').onchange = (e) => {
+    state.sortBy = e.target.value;
+    fetchFileList();
+  };
 
-document.getElementById('showHidden').onchange = (e) => {
-  state.showHidden = e.target.checked;
-  fetchFileList();
-};
-
-document.getElementById('sortBy').onchange = (e) => {
-  state.sortBy = e.target.value;
-  fetchFileList();
-};
-
-document.getElementById('order').onchange = (e) => {
-  state.order = e.target.value;
-  fetchFileList();
-};
+  document.getElementById('order').onchange = (e) => {
+    state.order = e.target.value;
+    fetchFileList();
+  };
 
 }
 
@@ -629,13 +628,28 @@ function handleFileAction(action, path) {
 }
 
 function handleRouteChange() {
-  const hash = location.hash;
-  const match = hash.match(/^#\/fileexplorer\/directory\/([^?]+)(\?(.*))?/);
+  let hash = location.hash;
+  let match = hash.match(/^#\/fileexplorer\/directory\/([^?]+)(\?(.*))?/);
+
+  if (match)
+  {
+    // 持久化当前hash
+    localStorage.setItem('currentDirectoryHash', hash);
+    console.log('持久化当前hash', hash);
+  }
+  else {
+    // 恢复上次hash
+    hash = localStorage.getItem('currentDirectoryHash') || '#/fileexplorer';
+    location.hash = hash;
+    match = hash.match(/^#\/fileexplorer\/directory\/([^?]+)(\?(.*))?/);
+  }
+
   let path = match ? decodeURIComponent(match[1]) : '/';
   const query = match && match[3] ? new URLSearchParams(match[3]) : new URLSearchParams();
 
   path = path.replace(/\\/g, '/') // 统一路径分隔符
   path = path.endsWith('/') ? path : path + '/' // 确保以 '/' 结尾
+
   state.currentDirectory = path;
   state.page = parseInt(query.get('page')) || 1;
   state.perPage = parseInt(query.get('perPage')) || 100;
