@@ -311,3 +311,6 @@ window.closeProcessModal = closeProcessModal;
           loadProcessList();
         });
     }
+
+    window.terminateProcess = terminateProcess;
+    window.terminateSelected = terminateSelected;

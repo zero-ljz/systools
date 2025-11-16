@@ -179,6 +179,10 @@
             .nav li span {
                 display: none;
             }
+
+            .nav .logo {
+                font-size:small;
+            }
         }
 
         @media (max-width: 768px) {

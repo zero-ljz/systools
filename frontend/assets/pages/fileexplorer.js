@@ -646,21 +646,21 @@ function handleRouteChange() {
 
 
 
-window.goToParentDirectory = goToParentDirectory
-window.goToDirectory = goToDirectory
-window.goToInputPath = goToInputPath
-window.createFile = createFile
-window.createDirectory = createDirectory
-window.cancelEdit = cancelEdit
-window.handleFileAction = handleFileAction
+window.goToParentDirectory = goToParentDirectory;
+window.goToDirectory = goToDirectory;
+window.goToInputPath = goToInputPath;
+window.createFile = createFile;
+window.createDirectory = createDirectory;
+window.cancelEdit = cancelEdit;
+window.handleFileAction = handleFileAction;
 
-window.fileAttr = fileAttr
-window.dirAttr = dirAttr
-window.renameFile = renameFile
-window.deleteFile = deleteFile
-window.copyFile = copyFile
-window.moveFile = moveFile
-window.previewFile = previewFile
-window.downloadFile = downloadFile
-window.editFile = editFile
-window.unpackFiles = unpackFiles
+window.fileAttr = fileAttr;
+window.dirAttr = dirAttr;
+window.renameFile = renameFile;
+window.deleteFile = deleteFile;
+window.copyFile = copyFile;
+window.moveFile = moveFile;
+window.previewFile = previewFile;
+window.downloadFile = downloadFile;
+window.editFile = editFile;
+window.unpackFiles = unpackFiles;
