@@ -668,6 +668,7 @@ window.createDirectory = createDirectory;
 window.cancelEdit = cancelEdit;
 window.handleFileAction = handleFileAction;
 
+window.copyPath = copyPath;
 window.fileAttr = fileAttr;
 window.dirAttr = dirAttr;
 window.renameFile = renameFile;
