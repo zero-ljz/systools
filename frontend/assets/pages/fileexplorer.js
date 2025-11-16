@@ -248,7 +248,7 @@ function renderFileTable() {
       <td>${formatDate(file.modified_at)}</td>
       <td>${formatDate(file.created_at)}</td>
       <td>
-        <button class="button is-small is-info" data-path="${file.path}" onclick="copyPath(this.dataset.path)">Copy Path</button>
+        <button class="button is-small is-info" data-path="${file.path}" onclick="copyText(this.dataset.path)">Copy Path</button>
         <div class="select is-small">
         <select data-path="${file.path}" onchange="handleFileAction(this.value, this.dataset.path); this.value='';">
           <option disabled selected value="">More</option>
@@ -319,9 +319,22 @@ function formatDate(ts) {
   return d.toISOString().replace('T', ' ').split('.')[0];
 }
 
-function copyPath(path) {
-  navigator.clipboard.writeText(path).then(() => alert('Copied: ' + path));
-}
+
+function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+      alert('Copied: ' + text)
+    } else {
+      const t = document.createElement('textarea');
+      t.value = text;
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand('copy');
+      alert('Copied: ' + text)
+      document.body.removeChild(t);
+    }
+  }
+
 
 function fileAttr(path) {
   axios.get(`${BASE_URL}files/${encodeURIComponent(path)}/attributes`).then(res => {
@@ -668,7 +681,7 @@ window.createDirectory = createDirectory;
 window.cancelEdit = cancelEdit;
 window.handleFileAction = handleFileAction;
 
-window.copyPath = copyPath;
+window.copyText = copyText;
 window.fileAttr = fileAttr;
 window.dirAttr = dirAttr;
 window.renameFile = renameFile;
