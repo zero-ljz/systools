@@ -424,7 +424,7 @@ def safe_process_info(p):
             'exe': p.exe(),
             'username': p.username(),
             'create_time': datetime.datetime.fromtimestamp(p.create_time()).strftime("%Y-%m-%d %H:%M:%S"),
-            'memory_percent': format_bytes(psutil.virtual_memory().total * 0.01 * p.memory_percent()),
+            'memory_usage': format_bytes(p.memory_info().rss),
         })
     except (psutil.AccessDenied, psutil.ZombieProcess, psutil.NoSuchProcess):
         return None

@@ -1,498 +1,482 @@
+/* ===========================
+   1. 配置与静态数据 (Config & Data)
+   =========================== */
+
+/** 导航配置数据 */
+const NAV_DATA = [
+    { icon: '<i class="fas fa-home"></i>', label: '首页', page: 'home' },
+    { icon: '<i class="fas fa-folder"></i>', label: '文件浏览', page: 'fileexplorer' },
+    { icon: '<i class="fas fa-terminal"></i>', label: '命令执行', page: 'webshell' },
+    { icon: '<i class="fas fa-server"></i>', label: '服务管理', page: 'servicemanager' },
+    { icon: '<i class="fas fa-chart-pie"></i>', label: '资源监控', page: 'sysinfo' },
+];
+
+/** 全局常量 */
+const CONSTANTS = {
+    DEFAULT_PAGE: 'home',
+    DOCK_MAX_ITEMS: 4, // 移动端底部显示4个，第5个为“更多”
+    TOAST_DURATION: 3000,
+};
 
 /* ===========================
-   全局状态管理 useAppState（保持接口与行为）
-   - getState / setState / subscribe / reset / log
-   - 优化：subscribe 初次触发仍保留，但保证每个订阅者只被添加一次（Set）
+   2. 状态管理 (State Management)
    =========================== */
+
 const useAppState = (() => {
-    // 初始 state（与原始保持一致）
-    const state = {
-        currentPage: 'home',
-        theme: 'light',
+    // 自动检测系统主题
+    const preferDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const initialState = {
+        currentPage: CONSTANTS.DEFAULT_PAGE,
+        subpath: null,    // 恢复：子路径支持
+        routeParams: {},  // 恢复：URL查询参数 (?page=1&sort=name)
+        theme: preferDark ? 'dark' : 'light',
         user: null,
-        notifications: [],
-        windows: [],
-        plugins: {},
     };
 
+    const state = { ...initialState };
     const listeners = new Set();
 
+    /** 获取当前状态副本 */
     function getState() {
-        // 返回浅拷贝，避免外部直接修改内部 state
         return { ...state };
     }
 
+    /** 更新状态并触发通知 */
     function setState(partial, silent = false) {
         if (!partial || typeof partial !== 'object') return;
-        Object.assign(state, partial);
-        if (!silent) notify();
+
+        let hasChanges = false;
+        for (const key in partial) {
+            if (state[key] !== partial[key]) {
+                state[key] = partial[key];
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges && !silent) {
+            notify();
+        }
     }
 
+    /** 订阅状态变更 */
     function subscribe(fn) {
         if (typeof fn !== 'function') return () => {};
         listeners.add(fn);
-        try {
-            fn(getState()); // 初次触发（保留原行为）
-        } catch (err) {
-            console.error('useAppState subscriber initial call error:', err);
-        }
+        // 首次订阅立即触发一次
+        try { fn(getState()); } catch (err) { console.error(err); }
         return () => listeners.delete(fn);
     }
 
     function notify() {
         const snapshot = getState();
-        // 用 for-of 保证同步调用并捕获每个 listener 的异常
-        for (const fn of Array.from(listeners)) {
-            try {
-                fn(snapshot);
-            } catch (err) {
-                // 单个 listener 抛错不影响其他 listener
-                console.error('useAppState subscriber error:', err);
-            }
-        }
-    }
-
-    function reset(keys = []) {
-        if (!Array.isArray(keys)) return;
-        keys.forEach(k => {
-            if (k in state) state[k] = null;
+        listeners.forEach(fn => {
+            try { fn(snapshot); } catch (err) { console.error(err); }
         });
-        notify();
     }
 
-    function log() {
-        console.log('🧠 AppState:', getState());
-    }
-
-    return {
-        getState,
-        setState,
-        subscribe,
-        reset,
-        log,
-    };
+    return { getState, setState, subscribe };
 })();
 
-
-
-/* -------- 导航数据（保持不变） -------- */
-const navData = [
-    { icon: '🏠', label: '首页', page: 'home' },
-    { icon: '📂', label: 'File Explorer', page: 'fileexplorer' },
-    { icon: '🌐', label: 'Web Shell', page: 'webshell' },
-    { icon: '🔧', label: 'Service Manager', page: 'servicemanager' },
-    { icon: '📊', label: 'Sysinfo', page: 'sysinfo' },
-];
-
 /* ===========================
-   路由 Router（保持原逻辑）
-   - parseHashRoute / handleHashChange / navigateTo / init
-   - 优化：对 hash 解析增加健壮性
+   3. 路由管理 (Router) - 恢复完整解析逻辑
    =========================== */
-const Router = (() => {
-    const validPages = navData.map(item => item.page);
-    const defaultPage = 'home';
 
+const Router = (() => {
+    const validPages = new Set(NAV_DATA.map(item => item.page));
+
+    /** 解析当前 URL Hash (支持 /page/subpath?query=1) */
     function parseHashRoute() {
-        // 支持空 hash
         const rawHash = window.location.hash || '';
-        const hash = rawHash.slice(2); // 去掉 "#/"
-        if (!hash) return { page: defaultPage, subpath: null, params: {} };
+        const hash = rawHash.replace(/^#\/?/, ''); // 移除开头的 # 或 #/
+        
+        if (!hash) return { page: CONSTANTS.DEFAULT_PAGE, subpath: null, params: {} };
 
         const [pathPart = '', queryPart = ''] = hash.split('?');
         const pathSegments = pathPart.split('/').filter(Boolean);
-        const page = pathSegments[0] || defaultPage;
-        const subpath = pathSegments[1] || null;
+        
+        const page = pathSegments[0] || CONSTANTS.DEFAULT_PAGE;
+        // 恢复：支持子路径 (例如 fileexplorer/directory/etc)
+        const subpath = pathSegments.slice(1).join('/') || null;
 
+        // 恢复：解析 URL 参数
         const params = {};
         if (queryPart) {
-            queryPart.split('&').forEach(pair => {
-                const [key, value] = pair.split('=');
-                if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+            const searchParams = new URLSearchParams(queryPart);
+            searchParams.forEach((value, key) => {
+                params[key] = value;
             });
         }
 
         return { page, subpath, params };
     }
 
+    /** 处理 Hash 变更 */
     function handleHashChange() {
         const { page, subpath, params } = parseHashRoute();
-        const targetPage = validPages.includes(page) ? page : defaultPage;
+        
+        // 页面白名单校验
+        const targetPage = validPages.has(page) ? page : CONSTANTS.DEFAULT_PAGE;
 
-        // 更新状态管理器（与原逻辑一致）
         useAppState.setState({
             currentPage: targetPage,
             subpath,
             routeParams: params,
         });
 
-        // 关闭 Dock 菜单（原逻辑）
-        document.getElementById('dock-menu')?.classList.add('hidden');
+        // 路由跳转时自动关闭 Dock 菜单
+        Dock.closeMenu();
     }
 
+    /** 编程式导航 */
     function navigateTo(page, params = {}, subpath = null) {
-        // 保持你原来的 query 拼接方式
-        const query = Object.entries(params)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join('&');
-        const path = `#/${page}${subpath ? '/' + subpath : ''}${query ? '?' + query : ''}`;
-        window.location.hash = path;
+        let url = `#/${page}`;
+        if (subpath) url += `/${subpath}`;
+        
+        const queryString = new URLSearchParams(params).toString();
+        if (queryString) url += `?${queryString}`;
+
+        window.location.hash = url;
     }
 
     function init() {
         window.addEventListener('hashchange', handleHashChange);
-        handleHashChange(); // 首次加载触发（保留原行为）
+        setTimeout(handleHashChange, 0); // 确保初始化时触发一次
     }
 
-    return {
-        init,
-        navigateTo,
-    };
+    return { init, navigateTo };
 })();
 
-
 /* ===========================
-   页面管理 PageManager（生命周期钩子保留）
-   - registerHooks / showPage / handlePageChange / init
-   - 优化：避免重复 showPage 操作
+   4. 页面管理器 (PageManager) - 恢复 Hooks 机制
    =========================== */
+
 const PageManager = (() => {
-    let currentPage = null;
+    let currentPageName = null;
+    const pageHooks = {}; // 存储注册的钩子 { onEnter, onLeave }
+    const pageCache = new Map();
 
-    // 页面生命周期钩子（可选）
-    const pageHooks = {
-        // 'files': { onEnter: fn, onLeave: fn }
-    };
-
-    function registerHooks(page, { onEnter, onLeave }) {
-        pageHooks[page] = { onEnter, onLeave };
+    /** 注册页面生命周期钩子 (这是 fileexplorer.js 需要的关键) */
+    function registerHooks(pageName, { onEnter, onLeave } = {}) {
+        pageHooks[pageName] = { onEnter, onLeave };
     }
 
-    function showPage(pageName) {
-        // 只在页面实际有变更时操作 DOM（减少不必要操作）
-        document.querySelectorAll('.page').forEach(p => {
-            p.style.display = p.dataset.page === pageName ? 'block' : 'none';
-        });
+    /** 获取页面 DOM 元素 */
+    function getPageElement(pageName) {
+        if (!pageCache.has(pageName)) {
+            const el = document.querySelector(`.page[data-page="${pageName}"]`);
+            if (el) pageCache.set(pageName, el);
+        }
+        return pageCache.get(pageName);
     }
 
-    function handlePageChange(state) {
-        const nextPage = state.currentPage;
-        if (!nextPage || nextPage === currentPage) return;
+    /** 处理状态变更，触发钩子 */
+    function handleStateChange(state) {
+        const nextPageName = state.currentPage;
+        if (!nextPageName || nextPageName === currentPageName) return;
 
-        // 调用 onLeave 钩子（保持原行为）
-        if (currentPage && pageHooks[currentPage]?.onLeave) {
-            try { pageHooks[currentPage].onLeave(state); } catch (err) { console.error(err); }
+        // 1. 触发旧页面的 onLeave
+        if (currentPageName && pageHooks[currentPageName]?.onLeave) {
+            try {
+                pageHooks[currentPageName].onLeave(state);
+            } catch (err) {
+                console.error(`[PageManager] Error in ${currentPageName}.onLeave:`, err);
+            }
         }
 
-        // 切换页面视图
-        showPage(nextPage);
+        // 2. 切换 DOM 显示
+        // 先隐藏所有
+        document.querySelectorAll('.page').forEach(el => el.style.display = 'none');
 
-        // 调用 onEnter 钩子（保持原行为）
-        if (pageHooks[nextPage]?.onEnter) {
-            try { pageHooks[nextPage].onEnter(state); } catch (err) { console.error(err); }
+        const targetEl = getPageElement(nextPageName);
+        if (targetEl) {
+            targetEl.style.display = 'block';
+
+            // 3. 触发新页面的 onEnter (关键恢复点)
+            if (pageHooks[nextPageName]?.onEnter) {
+                try {
+                    pageHooks[nextPageName].onEnter(state);
+                } catch (err) {
+                    console.error(`[PageManager] Error in ${nextPageName}.onEnter:`, err);
+                }
+            } else {
+                // 如果没有注册钩子，显示默认占位
+                if (!targetEl.innerHTML.trim()) {
+                    targetEl.innerHTML = `
+                        <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+                            <i class="fas fa-tools fa-3x mb-3 opacity-25"></i>
+                            <h3 class="h5">${nextPageName.toUpperCase()}</h3>
+                            <p class="small">Function under construction</p>
+                        </div>
+                    `;
+                }
+            }
         }
 
-        currentPage = nextPage;
+        currentPageName = nextPageName;
     }
 
     function init() {
-        useAppState.subscribe(handlePageChange);
+        useAppState.subscribe(handleStateChange);
     }
 
-    return {
-        init,
-        registerHooks,
-    };
+    return { init, registerHooks };
 })();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* ===========================
-   渲染：左侧导航（renderSidebarNav）
-   - 保持行为：点击项调用 Router.navigateTo(page)
-   - 优化：缓存 container 检查、避免每次重复创建闭包函数
+   5. PC 侧边栏 (Sidebar) - Bootstrap 样式
    =========================== */
-function renderSidebarNav(container) {
-    if (!container) return; // 健壮性检查
 
-    // update 会在 state 变化时被调用
-    function update(state) {
-        container.innerHTML = ''; // 清空
-        // 使用 DocumentFragment 批量插入，减少回流
+const Sidebar = (() => {
+    let container = null;
+
+    function render(state) {
+        if (!container) return;
+
         const frag = document.createDocumentFragment();
-
-        navData.forEach(item => {
+        
+        NAV_DATA.forEach(item => {
             const li = document.createElement('li');
-            li.innerHTML = `<i>${item.icon}</i><span>${item.label}</span>`;
-            li.dataset.page = item.page;
-            li.className = state.currentPage === item.page ? 'active' : '';
+            li.className = 'nav-item';
+            
+            // 构建 Bootstrap Nav Link
+            // 注意：onclick 使用 Router.navigateTo
+            const a = document.createElement('a');
+            a.href = 'javascript:;';
+            a.className = `nav-link ${state.currentPage === item.page ? 'active' : ''}`;
+            a.innerHTML = `<span class="me-0 me-md-2 d-flex justify-content-center align-items-center icon-box">${item.icon}</span> <span class="nav-text">${item.label}</span>`;
+            
+            // 处理点击
+            a.onclick = (e) => {
+                e.preventDefault();
+                Router.navigateTo(item.page);
+            };
 
-            // 事件绑定直接写在这里（与原逻辑一致）
-            li.onclick = () => Router.navigateTo(item.page);
-
+            li.appendChild(a);
             frag.appendChild(li);
         });
 
-        container.appendChild(frag);
-    }
-
-    // 首次渲染（使用当前快照）
-    update(useAppState.getState());
-    // 订阅状态变更（useAppState 会在 subscribe 时立即触发一次）
-    useAppState.subscribe(update);
-}
-
-
-/* ===========================
-   渲染：底部 Dock（renderDock）
-   - 保留 overflow 与 "更多" 行为
-   - 优化：缓存常量、使用 DocumentFragment、检查容器
-   =========================== */
-function renderDock(container) {
-    if (!container) return;
-
-    const max = 5;
-    // visible 是第一组候选项（原逻辑）
-    const visible = navData.slice(0, max);
-    const hasOverflow = navData.length > max;
-
-    function update(state) {
         container.innerHTML = '';
-        const frag = document.createDocumentFragment();
-
-        // 如果有 overflow：仅显示前 4 个 + 一个 more（符合原实现）
-        const showCount = hasOverflow ? 4 : 5;
-        visible.slice(0, showCount).forEach(item => {
-            const el = document.createElement('div');
-            el.className = 'icon';
-            if (state.currentPage === item.page) el.classList.add('active');
-            el.innerHTML = `<i title="${item.label}">${item.icon}</i>`;
-            el.dataset.page = item.page;
-            el.onclick = () => Router.navigateTo(item.page);
-            frag.appendChild(el);
-        });
-
-        if (hasOverflow) {
-            const more = document.createElement('div');
-            more.className = 'icon';
-            more.innerHTML = `<i title="更多">⋯</i>`;
-            // 调用你原先的 toggleDockMenu（行为保持一致）
-            more.onclick = toggleDockMenu;
-            frag.appendChild(more);
-        }
-
         container.appendChild(frag);
     }
 
-    update(useAppState.getState());
-    useAppState.subscribe(update);
-}
-
-
-/* ===========================
-   Dock 菜单切换（toggleDockMenu）
-   - 保留原有行为：显示剩余 nav 项，active 标识，点击跳转后隐藏菜单
-   - 优化：健壮性检查、避免重复 DOM 查询
-   =========================== */
-function toggleDockMenu() {
-    const menu = document.getElementById('dock-menu');
-    if (!menu) return;
-
-    // 如果已经展示就隐藏（与原逻辑一致）
-    if (!menu.classList.contains('hidden')) {
-        menu.classList.add('hidden');
-        return;
+    function init(elementId = 'nav-list') {
+        container = document.getElementById(elementId);
+        if (!container) return;
+        useAppState.subscribe(render);
     }
 
-    // 剩余项从第 5 个开始（原逻辑 slice(4)）
-    const remaining = navData.slice(4);
-    const state = useAppState.getState();
-
-    menu.innerHTML = '';
-    const ul = document.createElement('ul');
-
-    remaining.forEach(item => {
-        const li = document.createElement('li');
-        li.innerHTML = `<i>${item.icon}</i> ${item.label}`;
-        if (state.currentPage === item.page) li.classList.add('active');
-        li.onclick = () => {
-            Router.navigateTo(item.page);
-            menu.classList.add('hidden');
-        };
-        ul.appendChild(li);
-    });
-
-    menu.appendChild(ul);
-    menu.classList.remove('hidden');
-}
-
-/* 点击其他区域关闭 Dock 菜单（原逻辑保留）
-   - 优化：提前缓存 menu 元素引用（避免每次查找）
-*/
-(function setupDockMenuClose() {
-    // 这里不 cache menu 永久引用，因为 menu 可能在 DOM 异步变更，但查一次 ok
-    document.addEventListener('click', (e) => {
-        const menu = document.getElementById('dock-menu');
-        if (!menu) return;
-        if (!menu.contains(e.target) && !e.target.closest('.dock')) {
-            menu.classList.add('hidden');
-        }
-    });
+    return { init };
 })();
 
+/* ===========================
+   6. 移动端 Dock (Standard Tabs + Bottom Sheet)
+   =========================== */
 
+const Dock = (() => {
+    let dockContainer, backdrop, sheet, sheetList;
+
+    function renderDock(state) {
+        if (!dockContainer) return;
+
+        const max = CONSTANTS.DOCK_MAX_ITEMS;
+        const visibleItems = NAV_DATA.slice(0, max);
+        const hasOverflow = NAV_DATA.length > max;
+        
+        // 检查溢出菜单中是否有激活项
+        const overflowItems = NAV_DATA.slice(max);
+        const isOverflowActive = overflowItems.some(i => i.page === state.currentPage);
+
+        let html = visibleItems.map(item => `
+            <button class="dock-tab ${state.currentPage === item.page ? 'active' : ''}" 
+                    onclick="window.Router.navigateTo('${item.page}')">
+                ${item.icon}
+                <span>${item.label}</span>
+            </button>
+        `).join('');
+
+        // 渲染“更多”按钮
+        if (hasOverflow) {
+            html += `
+                <button class="dock-tab ${isOverflowActive ? 'active' : ''}" onclick="window.Dock.openMenu()">
+                    <i class="fas fa-ellipsis-h"></i>
+                    <span>更多</span>
+                </button>
+            `;
+        }
+
+        dockContainer.innerHTML = html;
+    }
+
+    function renderSheetList(state) {
+        if (!sheetList) return;
+        const overflowItems = NAV_DATA.slice(CONSTANTS.DOCK_MAX_ITEMS);
+
+        sheetList.innerHTML = overflowItems.map(item => `
+            <div class="sheet-item cursor-pointer ${state.currentPage === item.page ? 'text-primary bg-primary-subtle rounded' : ''}"
+                 onclick="window.Router.navigateTo('${item.page}')">
+                ${item.icon}
+                <span class="ms-3 fw-medium">${item.label}</span>
+                ${state.currentPage === item.page ? '<i class="fas fa-check ms-auto fs-6"></i>' : ''}
+            </div>
+        `).join('');
+    }
+
+    function openMenu() {
+        if (backdrop && sheet) {
+            backdrop.classList.add('show');
+            sheet.classList.add('show');
+        }
+    }
+
+    function closeMenu() {
+        if (backdrop && sheet) {
+            backdrop.classList.remove('show');
+            sheet.classList.remove('show');
+        }
+    }
+
+    function init(dockId = 'dock') {
+        dockContainer = document.getElementById(dockId);
+        backdrop = document.getElementById('sheet-backdrop');
+        sheet = document.getElementById('sheet-menu');
+        sheetList = document.getElementById('sheet-list');
+
+        if (backdrop) backdrop.onclick = closeMenu;
+        const closeBtn = document.getElementById('sheet-close');
+        if (closeBtn) closeBtn.onclick = closeMenu;
+
+        // 暴露给 HTML onclick 使用
+        window.Dock = { openMenu, closeMenu };
+        window.Router = Router; // 确保 HTML onclick 能访问 Router
+
+        useAppState.subscribe(state => {
+            renderDock(state);
+            renderSheetList(state);
+        });
+    }
+
+    return { init, openMenu, closeMenu };
+})();
 
 /* ===========================
-   Toast 通知系统（保持 API 与行为）
-   - info / success / warning / error
-   - 优化：缓存 container、异常安全处理
+   7. 通知组件 (Toast) - 保持 Bootstrap 风格
    =========================== */
+
 const Toast = (() => {
     let container = null;
 
-    function ensureContainer() {
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'toast-container';
-            document.body.appendChild(container);
-        }
+    function createContainer() {
+        container = document.getElementById('toast-container');
     }
 
-    function show(message, type = 'info', duration = 3000) {
-        ensureContainer();
+    function show(message, type = 'info', duration = CONSTANTS.TOAST_DURATION) {
+        if (!container) createContainer();
 
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
+        toast.className = `custom-toast ${type}`; // 样式在 CSS 中定义
+        
+        let iconHtml = '';
+        if (type === 'success') iconHtml = '<i class="fas fa-check-circle me-2 text-success"></i>';
+        if (type === 'error') iconHtml = '<i class="fas fa-exclamation-circle me-2 text-danger"></i>';
+        if (type === 'info') iconHtml = '<i class="fas fa-info-circle me-2 text-primary"></i>';
+        if (type === 'warning') iconHtml = '<i class="fas fa-exclamation-triangle me-2 text-warning"></i>';
 
+        toast.innerHTML = `${iconHtml}<span>${message}</span>`;
         container.appendChild(toast);
 
-        // 使用 setTimeout 隐藏（与原实现一致）
+        // 动画
+        requestAnimationFrame(() => toast.classList.add('show'));
+
         setTimeout(() => {
-            toast.classList.add('fade-out');
+            toast.classList.remove('show');
             toast.addEventListener('transitionend', () => {
-                toast.remove();
+                if (toast.parentNode) toast.remove();
             });
         }, duration);
     }
 
     return {
-        info: (msg, ms) => show(msg, 'info', ms),
-        success: (msg, ms) => show(msg, 'success', ms),
-        warning: (msg, ms) => show(msg, 'warning', ms),
-        error: (msg, ms) => show(msg, 'error', ms),
+        info: (msg) => show(msg, 'info'),
+        success: (msg) => show(msg, 'success'),
+        warning: (msg) => show(msg, 'warning'),
+        error: (msg) => show(msg, 'error'),
     };
 })();
 
-
 /* ===========================
-   页面交互：初始化与事件绑定（保持行为）
-   - renderSidebarNav / renderDock / PageManager.init / Router.init
-   - Toast 快速演示（保留你的调用）
+   8. 应用入口 (Entry)
    =========================== */
-(function initApp() {
-    // 缓存常用 DOM 节点（健壮性检查）
-    const navListEl = document.getElementById('nav-list');
-    const dockEl = document.getElementById('dock');
 
-    // 渲染（这些函数内部会订阅 state）
-    renderSidebarNav(navListEl);
-    renderDock(dockEl);
-
-    // 启动页面管理与路由
-    PageManager.init();
-    
-    // ✅ 延后 Router.init() 到 DOM 完成渲染之后
-    window.addEventListener('DOMContentLoaded', () => {
-        Router.init();
-    });
-
-    // 保留你原有的 Toast 显示调用（示例用）
-    Toast.info('这是一个信息提示');
-    Toast.success('保存成功', 2000);
-    Toast.warning('请检查输入');
-    Toast.error('操作失败', 5000);
-
-    // 原先的按钮绑定（保留）
-    const notifyBtn = document.getElementById('notify');
-    if (notifyBtn) {
-        notifyBtn.onclick = () => {
-            alert('你有 3 条新通知');
-        };
-    }
-
+function bindGlobalUIEvents() {
+    // 1. 主题切换
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
         themeToggle.onclick = () => {
-            document.body.classList.toggle('dark-theme');
+            const current = useAppState.getState().theme;
+            const next = current === 'light' ? 'dark' : 'light';
+            useAppState.setState({ theme: next });
+            
+            // 应用到 HTML 标签
+            document.documentElement.setAttribute('data-bs-theme', next);
+            
+            // 切换图标
+            const icon = themeToggle.querySelector('i');
+            if (icon) icon.className = next === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
         };
     }
-
-    const settingsBtn = document.getElementById('settings');
-    if (settingsBtn) {
-        settingsBtn.onclick = () => {
-            alert('打开设置面板');
-        };
+    
+    // 初始化应用当前主题
+    const initialTheme = useAppState.getState().theme;
+    document.documentElement.setAttribute('data-bs-theme', initialTheme);
+    if(themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        if (icon) icon.className = initialTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
     }
 
-    // 用户菜单下拉（保留原行为）
-    const userIcon = document.querySelector('.user-menu');
-    const dropdown = document.querySelector('.user-dropdown');
+    // 2. 通知按钮
+    const notifyBtn = document.getElementById('notify');
+    if (notifyBtn) {
+        notifyBtn.onclick = () => Toast.info('你有 3 条新通知');
+    }
 
-    if (userIcon && dropdown) {
-        userIcon.onclick = (e) => {
+    // 3. 用户下拉菜单
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userDropdown = document.getElementById('userDropdown');
+    if (userMenuBtn && userDropdown) {
+        userMenuBtn.onclick = (e) => {
             e.stopPropagation();
-            dropdown.classList.toggle('hidden');
+            userDropdown.classList.toggle('d-none');
+            userDropdown.classList.toggle('show');
         };
-
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.user-menu')) {
-                dropdown.classList.add('hidden');
+            if (!userMenuBtn.contains(e.target) && !userDropdown.contains(e.target)) {
+                userDropdown.classList.add('d-none');
+                userDropdown.classList.remove('show');
             }
         });
     }
+}
+
+// 启动
+(function initApp() {
+    PageManager.init();
+    Sidebar.init('nav-list');
+    Dock.init('dock');
+    
+    bindGlobalUIEvents();
+
+    window.addEventListener('DOMContentLoaded', () => {
+        Router.init();
+    });
 })();
 
 /* ===========================
-   工具函数：添加通知（与原始 addNotification 保持完全一致）
+   Exports
    =========================== */
-function addNotification(message, icon = '🔔') {
-    const list = document.getElementById('notify-list');
-    if (!list) return;
-    const li = document.createElement('li');
-    li.textContent = `${icon} ${message}`;
-    list.prepend(li);
-}
-
-
-
 export {
     useAppState,
     Router,
     PageManager,
-    Toast,
-    addNotification
+    Toast
 };
-
-
-/* ===========================
-   End of app.js
-   =========================== */

@@ -1,266 +1,521 @@
-// assets/pages/webshell.js
-import { PageManager } from '../app.js';
+import { PageManager, Toast } from '../app.js';
 
-function renderWebShellPage(container) {
-  container.innerHTML = `
-    <h2 class="title is-4">Web Shell</h2>
-    <form id="form1">
-      <div class="field is-grouped is-grouped-multiline">
-        <div class="control">
-          <label class="checkbox" title="用本程序启动时的Shell执行">
-            <input type="checkbox" id="shell"> Shell
-          </label>
-        </div>
-        <div class="control">
-          <label class="checkbox">
-            <input type="checkbox" id="capture_output" checked> Capture Output
-          </label>
-        </div>
-      </div>
+// --- 1. 基础配置 (沿用旧逻辑) ---
+function getBaseUrl() {
+    let { protocol, host, pathname } = window.location;
+    if (!pathname.endsWith('/')) {
+        pathname += '/';
+    }
+    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    return `${protocol}//${host}${path}web_shell/`;
+}
 
-      <div class="field">
-        <div class="control">
-          <input class="input" type="text" id="cwd" placeholder="cwd">
-        </div>
-      </div>
+const BASE_URL_PATH = getBaseUrl();
 
-      <div class="field">
-        <div class="buttons">
-          <button class="button is-link" type="button" value="RunCMD">Run</button>
-          <button class="button is-success" type="button" value="AddParam" tabindex="-1">+</button>
-          <button class="button is-danger" type="button" value="RemoveParam" tabindex="-1">-</button>
-          <label class="checkbox">
-          <input id="uriComponentEncoding" type="checkbox"> Encoding
-          </label>
-        </div>
-      </div>
+// --- 2. 状态管理 ---
+let state = {
+    cwd: '',
+    command: '', 
+    args: [],    
+    useShell: false,
+    captureOutput: true,
+    encoding: false,
+    urlMode: 1,  
+    confirmModalInstance: null
+};
 
-      <div class="field is-grouped">
-        <div class="control is-expanded">
-          <input class="input" type="text" list="optionList" id="0" placeholder="0">
-          <datalist id="optionList">
-            <option value="python">python</option>
-            <option value="node">node</option>
-            <option value="curl">curl</option>
-          </datalist>
-        </div>
-        <div class="control">
-          <button class="button is-light" type="button" value="Clear" tabindex="-1">Clear</button>
-        </div>
+// --- 3. 生命周期钩子 ---
+PageManager.registerHooks('webshell', {
+    onEnter() {
+        renderLayout();
+        bindGlobalEvents();
         
-      </div>
-
-    </form>
-  `;
-
-  textareaCount = 0; // 重新渲染页面后重置 textarea 计数器
-  // 初始化逻辑
-  loadFormData();
-}
-
-
-function runCMD() {
-    let q; q = prompt('Please confirm the jump target:', BASE_URL + genURL(1, document.getElementById('uriComponentEncoding').checked)); if (q == null) return; saveFormData(); window.location.href = q;
-}
-function clear() {
-    document.getElementById('0').value = '';
-}
-
-function addParam() {
-    // 创建新的 textarea 元素
-    const newTextArea = document.createElement('textarea');
-
-    // 设置新的 textarea 的 name 和 placeholder 属性
-    const paramName = (textareaCount + 1);
-    newTextArea.id = paramName;
-    newTextArea.placeholder = paramName;
-    newTextArea.style.display = 'block';
-    newTextArea.style.margin = '0.5rem 0';
-    newTextArea.classList.add('textarea');
-    newTextArea.rows = 1;
-    // 禁止用户拖拽调整大小
-    newTextArea.style.resize = 'none';
-    newTextArea.style.overflow = 'hidden';
-    // 拦截回车键
-    newTextArea.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault(); // 阻止换行
-      }
-    });
-
-    // 加载保存的记录
-    newTextArea.value = sessionStorage.getItem(paramName)
-
-    // 将新的 textarea 添加到表单中
-    const form = document.getElementById('form1');
-    form.insertBefore(newTextArea, form.lastElementChild.nextElementSibling);
-
-    // 更新 textareaCount 值
-    textareaCount++;
-}
-
-function removeParam() {
-    // 获取最后一个参数控件
-    const form = document.getElementById('form1');
-    const lastParam = form.lastElementChild;
-
-    if (lastParam.tagName === 'TEXTAREA') {
-        // 从表单中删除最后一个参数控件
-        form.removeChild(lastParam);
-
-        // 更新 textareaCount 值
-        textareaCount--;
-    }
-}
-
-function saveFormData() {
-    let form = document.getElementById('form1');
-
-    sessionStorage.clear();
-
-    sessionStorage.setItem('cwd', document.getElementById('cwd').value);
-    sessionStorage.setItem('shell', document.getElementById('shell').checked ? 'on' : 'off');
-    sessionStorage.setItem('capture_output', document.getElementById('capture_output').checked ? 'on' : 'off');
-
-    let elements = getElementsWithNumberId(form);
-    elements.forEach(element => {
-        sessionStorage.setItem(element.id, element.value);
-    });
-
-    return false;
-}
-window.saveFormData = saveFormData;
-
-function loadFormData() {
-    const form = document.getElementById('form1');
-
-    if (sessionStorage.getItem('cwd')) {
-        document.getElementById('cwd').value = sessionStorage.getItem('cwd')
-    }
-    if (sessionStorage.getItem('shell')) {
-        document.getElementById('shell').checked = sessionStorage.getItem('shell') == 'on' ? true : false;
-    }
-    if (sessionStorage.getItem('capture_output')) {
-        document.getElementById('capture_output').checked = sessionStorage.getItem('capture_output') == 'on' ? true : false;
-    }
-
-    for (let i = 0; i < form.elements.length; i++) {
-        const element = form.elements[i];
-        const value = sessionStorage.getItem(element.id);
-        if (value) {
-            element.value = value;
+        // 恢复数据
+        loadFormData();
+        
+        // 渲染界面并立即触发一次预览
+        restoreDOMState();
+        renderArgsInputs();
+        updatePreview(); 
+    },
+    onLeave() {
+        saveFormData();
+        if (state.confirmModalInstance) {
+            state.confirmModalInstance.dispose();
+            state.confirmModalInstance = null;
         }
     }
+});
+
+// --- 4. 渲染层 (Bootstrap 5 UI) ---
+function renderLayout() {
+    const page = document.querySelector('.page[data-page="webshell"]');
+    if (!page) return;
+
+    page.innerHTML = `
+    <style>
+        .sticky-box { position: sticky; top: 20px; transition: all 0.3s; }
+        .arg-row { animation: slideDown 0.2s ease-out; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: 0; } }
+        .preview-area { transition: background-color 0.2s; }
+        .preview-area.highlight { background-color: #f0f9ff; }
+    </style>
+
+    <div class="container-fluid p-0">
+        <!-- 标题头 -->
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <div>
+                <h4 class="mb-1"><i class="fas fa-terminal text-primary me-2"></i>Web Shell</h4>
+                <div class="text-muted small">远程命令执行生成器</div>
+            </div>
+            <button class="btn btn-light border text-danger" id="btnClear" title="清空所有设置">
+                <i class="fas fa-trash-alt me-1"></i> 重置所有
+            </button>
+        </div>
+
+        <div class="row g-4">
+            <!-- 左侧：配置区域 -->
+            <div class="col-lg-7 col-xl-8">
+                
+                <!-- 环境配置 -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="d-flex flex-wrap gap-3">
+                                    <div class="form-check border rounded px-3 py-2 bg-light user-select-none cursor-pointer">
+                                        <input class="form-check-input" type="checkbox" id="checkShell">
+                                        <label class="form-check-label small" for="checkShell" title="用本程序启动时的Shell执行">
+                                            Shell Mode
+                                        </label>
+                                    </div>
+                                    <div class="form-check border rounded px-3 py-2 bg-light user-select-none cursor-pointer">
+                                        <input class="form-check-input" type="checkbox" id="checkCapture" checked>
+                                        <label class="form-check-label small" for="checkCapture">
+                                            Capture Output
+                                        </label>
+                                    </div>
+                                    <div class="form-check border rounded px-3 py-2 bg-light user-select-none cursor-pointer">
+                                        <input class="form-check-input" type="checkbox" id="checkEncoding">
+                                        <label class="form-check-label small" for="checkEncoding">
+                                            URI Component Encoding
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label small fw-bold">Current Working Directory (cwd)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="fas fa-folder text-muted"></i></span>
+                                    <input class="form-control" type="text" id="inputCwd" placeholder="Default">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 命令配置 -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom pt-3">
+                        <h6 class="mb-0 text-muted"><i class="fas fa-code me-2"></i>命令构建</h6>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- 主命令 -->
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold">主命令 (Command)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="fas fa-chevron-right"></i></span>
+                                <input class="form-control fw-bold" type="text" id="inputCommand" list="cmdList" placeholder="e.g. python, node, cat" autocomplete="off">
+                                <button class="btn btn-outline-secondary" type="button" id="btnClearCommand" title="Clear Command"><i class="fas fa-times"></i></button>
+                                <datalist id="cmdList">
+                                    <option value="python">
+                                    <option value="node">
+                                    <option value="curl">
+                                    <option value="whoami">
+                                    <option value="ls">
+                                    <option value="cat">
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <!-- 参数列表 -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label small fw-bold mb-0">参数列表 (Arguments)</label>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-success text-white" id="btnAddArg" title="Add Parameter"><i class="fas fa-plus"></i></button>
+                                    <button class="btn btn-danger text-white" id="btnRemoveArg" title="Remove Last Parameter"><i class="fas fa-minus"></i></button>
+                                </div>
+                            </div>
+                            <div id="argsContainer" class="d-flex flex-column gap-2">
+                                <!-- JS 动态生成 -->
+                            </div>
+                            <div id="emptyArgsPlaceholder" class="text-center py-3 text-muted border border-dashed rounded bg-light small">
+                                无参数，点击上方 "+" 添加
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：执行与预览 -->
+            <div class="col-lg-5 col-xl-4">
+                <div class="card border-0 shadow-sm sticky-box bg-light">
+                    <div class="card-body">
+                         <div class="mb-3">
+                            <label class="form-label small fw-bold">URL 生成模式</label>
+                            <select class="form-select form-select-sm" id="selectUrlMode">
+                                <option value="1">Mode 1: Query (?cmd=...)</option>
+                                <option value="2">Mode 2: Path (/cmd/...)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3 position-relative">
+                            <div class="d-flex justify-content-between align-items-end mb-1">
+                                <label class="form-label small fw-bold mb-0">实时预览</label>
+                                <button class="btn btn-link btn-sm p-0 text-decoration-none" id="btnCopyUrl">
+                                    <i class="far fa-copy"></i> 复制链接
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm font-monospace bg-white preview-area" id="previewUrl" readonly rows="8" style="font-size: 12px; white-space: pre-wrap; word-break: break-all;"></textarea>
+                        </div>
+
+                        <button class="btn btn-primary w-100 py-2 shadow-sm" id="btnRun">
+                            <i class="fas fa-rocket me-2"></i> 执行跳转 (Run)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 确认模态框 -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title fs-6">跳转确认</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2 text-muted small">即将访问以下 URL：</p>
+                    <textarea class="form-control form-control-sm font-monospace bg-light" readonly id="confirmUrlDisplay" rows="5"></textarea>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="btnConfirmRun">确认访问</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+
+    const modalEl = document.getElementById('confirmModal');
+    if (modalEl) {
+        state.confirmModalInstance = new bootstrap.Modal(modalEl);
+    }
 }
 
-function genURL(method = 1, isEncode = false) {
-    const form = document.getElementById('form1');
-    const textareas = form.getElementsByTagName('textarea');
-    let cwd = document.getElementById('cwd').value;
-    let shell = document.getElementById('shell').checked ? 'on' : 'off';
-    let capture_output = document.getElementById('capture_output').checked ? 'on' : 'off';
+// --- 5. 事件绑定 (实时更新的核心) ---
+function bindGlobalEvents() {
+    // 监听所有静态输入框的 input 事件，实现实时更新
+    const inputs = ['inputCwd', 'inputCommand', 'checkShell', 'checkCapture', 'checkEncoding', 'selectUrlMode'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.addEventListener('input', () => {
+                syncStateFromDOM();
+                updatePreview();
+            });
+            // 针对 checkbox 的 change 事件也绑定
+            if(el.type === 'checkbox' || el.tagName === 'SELECT') {
+                el.addEventListener('change', () => {
+                    syncStateFromDOM();
+                    updatePreview();
+                });
+            }
+        }
+    });
+
+    // 清空命令按钮
+    document.getElementById('btnClearCommand').onclick = () => {
+        document.getElementById('inputCommand').value = '';
+        document.getElementById('inputCommand').focus();
+        syncStateFromDOM();
+        updatePreview();
+    };
+
+    // 重置所有
+    document.getElementById('btnClear').onclick = () => {
+        if(confirm('确定要重置所有输入内容吗？')) {
+            resetState();
+            restoreDOMState();
+            renderArgsInputs();
+            updatePreview();
+            Toast.info('已重置');
+        }
+    };
+
+    // 添加参数
+    document.getElementById('btnAddArg').onclick = () => {
+        state.args.push('');
+        renderArgsInputs();
+        updatePreview();
+        // 自动聚焦到最新添加的输入框
+        setTimeout(() => {
+            const inputs = document.querySelectorAll('.arg-input');
+            if(inputs.length) inputs[inputs.length-1].focus();
+        }, 50);
+    };
+
+    // 移除最后一个参数
+    document.getElementById('btnRemoveArg').onclick = () => {
+        if(state.args.length > 0) {
+            state.args.pop();
+            renderArgsInputs();
+            updatePreview();
+        }
+    };
+
+    // 复制 URL
+    document.getElementById('btnCopyUrl').onclick = () => {
+        const url = document.getElementById('previewUrl').value;
+        if(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.getElementById('btnCopyUrl');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check text-success"></i> 已复制';
+                setTimeout(() => btn.innerHTML = originalHtml, 2000);
+            });
+        }
+    };
+
+    // 运行按钮
+    document.getElementById('btnRun').onclick = showConfirmModal;
+
+    // 模态框确认
+    document.getElementById('btnConfirmRun').onclick = () => {
+        const url = document.getElementById('previewUrl').value;
+        if (!url) return;
+        saveFormData(); 
+        window.location.href = url;
+        if (state.confirmModalInstance) state.confirmModalInstance.hide();
+    };
+}
+
+// --- 6. 核心逻辑：UI 同步 ---
+
+function syncStateFromDOM() {
+    state.cwd = document.getElementById('inputCwd').value;
+    state.command = document.getElementById('inputCommand').value;
+    state.useShell = document.getElementById('checkShell').checked;
+    state.captureOutput = document.getElementById('checkCapture').checked;
+    state.encoding = document.getElementById('checkEncoding').checked;
+    state.urlMode = parseInt(document.getElementById('selectUrlMode').value) || 1;
+}
+
+function restoreDOMState() {
+    document.getElementById('inputCwd').value = state.cwd;
+    document.getElementById('inputCommand').value = state.command;
+    document.getElementById('checkShell').checked = state.useShell;
+    document.getElementById('checkCapture').checked = state.captureOutput;
+    document.getElementById('checkEncoding').checked = state.encoding;
+    document.getElementById('selectUrlMode').value = state.urlMode;
+}
+
+function renderArgsInputs() {
+    const container = document.getElementById('argsContainer');
+    const placeholder = document.getElementById('emptyArgsPlaceholder');
+    container.innerHTML = '';
+
+    if (state.args.length === 0) {
+        placeholder.classList.remove('d-none');
+    } else {
+        placeholder.classList.add('d-none');
+    }
+
+    state.args.forEach((val, index) => {
+        const div = document.createElement('div');
+        div.className = 'input-group input-group-sm arg-row';
+        div.innerHTML = `
+            <span class="input-group-text bg-light text-muted" style="width: 40px; justify-content: center;">${index + 1}</span>
+            <input type="text" class="form-control arg-input" placeholder="参数 ${index + 1}" value="${escapeHtml(val)}">
+            <button class="btn btn-outline-danger btn-remove-this-arg" type="button" title="移除此参数">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        const input = div.querySelector('input');
+        
+        // 关键：参数输入框的实时监听
+        input.oninput = (e) => {
+            state.args[index] = e.target.value;
+            updatePreview();
+        };
+
+        // 模拟旧代码逻辑：Input 中回车不提交表单，而是聚焦下一个或无操作
+        input.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+            }
+        });
+
+        // 单个移除按钮
+        div.querySelector('.btn-remove-this-arg').onclick = () => {
+            state.args.splice(index, 1);
+            renderArgsInputs();
+            updatePreview();
+        };
+
+        container.appendChild(div);
+    });
+}
+
+function updatePreview() {
+    const url = genURL(state.urlMode, state.encoding);
+    const textarea = document.getElementById('previewUrl');
+    if(textarea) {
+        textarea.value = url;
+    }
+}
+
+function showConfirmModal() {
+    const url = genURL(state.urlMode, state.encoding);
+    document.getElementById('previewUrl').value = url;
+    document.getElementById('confirmUrlDisplay').value = url;
+    if (state.confirmModalInstance) state.confirmModalInstance.show();
+}
+
+// --- 7. 核心逻辑：URL 生成算法 (完全复刻旧代码) ---
+function genURL(method, isEncode) {
+    let cwd = state.cwd;
+    let shell = state.useShell ? 'on' : 'off';
+    let capture_output = state.captureOutput ? 'on' : 'off';
+    
+    // 逻辑复刻：optionStr 拼接
     let optionStr = (cwd ? '&cwd=' + (isEncode ? encodeURIComponent(cwd) : cwd) : '')
-        + (shell ? '&shell=' + shell : '')
-        + (capture_output ? '&capture_output=' + capture_output : '');
-    let param0Str = document.getElementById('0').value;
+        + (shell === 'on' ? '&shell=' + shell : '') 
+        + (capture_output === 'on' ? '&capture_output=' + capture_output : '');
+
+    let param0Str = state.command || '';
     let paramStr = '';
     let href = '';
-
+    
     if (method == 1) {
-        // 通过查询字符串传递参数
-        for (let i = 0; i < textareas.length; i++) {
-            if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
-                continue;
-            }
-            const paramValue = textareas[i].value.replace('&', '%26'); // 参数中包含&时强制替换为&的编码%26
+        // Method 1: Query
+        state.args.forEach((val, index) => {
+            // 逻辑复刻：忽略最后一个空参数
+            if (index === state.args.length - 1 && !val) return;
+
+            let paramValue = val.replace(/&/g, '%26'); 
             if (paramValue.includes(' ')) {
                 paramStr += ' "' + paramValue + '"';
             } else {
                 paramStr += ' ' + paramValue;
             }
-        }
-        param0Str = param0Str.replace('&', '%26'); // 参数中包含&时强制替换为&的编码%26
-        if (param0Str.includes(' ')) { // 命令名称/路径不带参数时不自动加双引号
-            if ((textareas.length == 1 && textareas[0].value) || textareas.length > 1) {
+        });
+
+        param0Str = param0Str.replace(/&/g, '%26');
+
+        // 逻辑复刻：主命令引号处理
+        let hasArgs = false;
+        // 如果 args 数组长度 > 1，或者长度为1且不为空
+        if (state.args.length > 1) hasArgs = true;
+        if (state.args.length === 1 && state.args[0]) hasArgs = true;
+
+        if (param0Str.includes(' ')) {
+            if (hasArgs) {
                 param0Str = '"' + param0Str + '"';
             }
         }
 
-        href = `?cmd=` + (isEncode ? encodeURIComponent(param0Str + paramStr) : param0Str + paramStr)
-            + optionStr;
-    }
-    else if (method == 2) {
-        // 通过路径传递参数，参数中包含了斜杠/时要用双引号"包括起来
-        for (let i = 0; i < textareas.length; i++) {
-            if (i == textareas.length - 1 && !textareas[i].value) { // 最后一个参数为空时跳过
-                continue;
-            }
-            const paramValue = textareas[i].value;
+        const fullCmd = param0Str + paramStr;
+        href = `?cmd=` + (isEncode ? encodeURIComponent(fullCmd) : fullCmd) + optionStr;
+
+    } else if (method == 2) {
+        // Method 2: Path
+        state.args.forEach((val, index) => {
+            if (index === state.args.length - 1 && !val) return;
+
+            let paramValue = val;
             if (paramValue.includes('/') || paramValue.includes('\\')) {
                 paramStr += '/"' + (isEncode ? encodeURIComponent(paramValue) : paramValue) + '"';
             } else {
                 paramStr += '/' + (isEncode ? encodeURIComponent(paramValue) : paramValue);
             }
-        }
-        if (param0Str.includes('/') || param0Str.includes('\\')) { // 命令名称/路径不带参数时不自动加双引号
-            if ((textareas.length == 1 && textareas[0].value) || textareas.length > 1) {
+        });
+
+        let hasArgs = false;
+        if (state.args.length > 1) hasArgs = true;
+        if (state.args.length === 1 && state.args[0]) hasArgs = true;
+
+        if (param0Str.includes('/') || param0Str.includes('\\')) {
+            if (hasArgs) {
                 param0Str = '"' + param0Str + '"';
             }
         }
-        href = (isEncode ? encodeURIComponent(param0Str) : param0Str) + paramStr + '?'
-            + optionStr;
+
+        href = (isEncode ? encodeURIComponent(param0Str) : param0Str) + paramStr + '?' + optionStr;
     }
 
-    console.log(href);
-    return href;
+    return BASE_URL_PATH + href;
 }
 
-function getElementsWithNumberId(parentElement) {
-    const elements = [];
-    const children = parentElement.children;
-    for (let i = 0; i < children.length; i++) {
-        const element = children[i];
-        if (element.id && element.id.match(/^\d+$/)) {
-            elements.push(element);
-        }
-        if (element.children.length > 0) {
-            elements.push(...getElementsWithNumberId(element));
-        }
+// --- 8. 数据持久化 (复刻 SessionStorage 键名) ---
+function saveFormData() {
+    sessionStorage.setItem('cwd', state.cwd);
+    sessionStorage.setItem('shell', state.useShell ? 'on' : 'off');
+    sessionStorage.setItem('capture_output', state.captureOutput ? 'on' : 'off');
+    sessionStorage.setItem('0', state.command); // id="0"
+
+    // 清理旧参数
+    let i = 1;
+    while (sessionStorage.getItem(i.toString())) {
+        sessionStorage.removeItem(i.toString());
+        i++;
     }
-    return elements;
-}
-
-function getBaseUrl() {
-    let { protocol, host, pathname } = window.location;
-    // pathname 未以/结尾时加上/
-    if (!pathname.endsWith('/')) {
-        pathname += '/';
-    }
-    const path = pathname.substring(0, pathname.lastIndexOf('/') + 1);
-    return `${protocol}//${host}${path}`;
-}
-
-
-// 定义全局变量用于记录已存在的 textarea 控件数量
-let textareaCount = 0;
-const BASE_URL = getBaseUrl() + 'web_shell/';
-
-// 注册页面生命周期钩子
-PageManager.registerHooks('webshell', {
-  onEnter() {
-    const container = document.querySelector('.page[data-page="webshell"]');
-    renderWebShellPage(container);
-    // alert('打开webshell面板');
-
+    // 保存新参数
+    state.args.forEach((val, index) => {
+        sessionStorage.setItem((index + 1).toString(), val);
+    });
     
-const form = document.getElementById('form1');
-        form.querySelector('button[value="RunCMD"]').addEventListener('click', runCMD);
-        form.querySelector('button[value="Clear"]').addEventListener('click', clear);
-        form.querySelector('button[value="AddParam"]').addEventListener('click', addParam);
-        form.querySelector('button[value="RemoveParam"]').addEventListener('click', removeParam);
+    // UI状态
+    sessionStorage.setItem('ui_encoding', state.encoding ? 'true' : 'false');
+    sessionStorage.setItem('ui_urlMode', state.urlMode);
+}
 
-  },
-  onLeave() {
-    // 可选：清理事件或 DOM
-  }
-});
+function loadFormData() {
+    if (sessionStorage.getItem('cwd')) state.cwd = sessionStorage.getItem('cwd');
+    if (sessionStorage.getItem('shell')) state.useShell = sessionStorage.getItem('shell') === 'on';
+    if (sessionStorage.getItem('capture_output')) state.captureOutput = sessionStorage.getItem('capture_output') === 'on';
+    if (sessionStorage.getItem('0')) state.command = sessionStorage.getItem('0');
+
+    state.args = [];
+    let i = 1;
+    while (true) {
+        const val = sessionStorage.getItem(i.toString());
+        if (val === null) break;
+        state.args.push(val);
+        i++;
+    }
+
+    if (sessionStorage.getItem('ui_encoding')) state.encoding = sessionStorage.getItem('ui_encoding') === 'true';
+    if (sessionStorage.getItem('ui_urlMode')) state.urlMode = parseInt(sessionStorage.getItem('ui_urlMode'));
+}
+
+function resetState() {
+    state.cwd = '';
+    state.command = '';
+    state.args = [];
+    state.useShell = false;
+    state.captureOutput = true;
+    state.encoding = false;
+    state.urlMode = 1;
+    sessionStorage.clear();
+}
+
+function escapeHtml(text) {
+    if(!text) return '';
+    return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}

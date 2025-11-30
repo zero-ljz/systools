@@ -1,66 +1,220 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-bs-theme="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sys Tools</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sys Tools - Professional</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://gcore.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <link rel="stylesheet" href="./assets/style.css" />
-  <link rel="icon" href="data:," />
-</head>
 
+  <style>
+    :root {
+        --nav-width: 260px;
+        --nav-width-collapsed: 72px;
+        --sidebar-width: 320px;
+        --header-height: 64px;
+        --dock-height: 60px;
+        --color-primary: #2563eb;
+        --bg-main: #f8fafc;
+        --border-color: #dee2e6;
+    }
+
+    [data-bs-theme="dark"] {
+        --bg-main: #0f172a;
+        --border-color: #334155;
+        --color-primary: #3b82f6;
+    }
+
+    body, html { height: 100%; font-family: 'Inter', sans-serif; background-color: var(--bg-main); overflow: hidden; }
+    #app { display: flex; height: 100vh; width: 100vw; }
+    
+    /* 通用过渡与动画 */
+    .sidebar-nav, .dock-tab, .tool-icon, .custom-toast { transition: all 0.2s ease; }
+    .page { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* --- 1. 左侧导航 (PC) --- */
+    .sidebar-nav {
+        width: var(--nav-width); background: var(--bs-body-bg); border-right: 1px solid var(--border-color);
+        display: flex; flex-direction: column; z-index: 1030; flex-shrink: 0;
+    }
+    .brand-area {
+        height: var(--header-height); display: flex; align-items: center; padding-left: 1.5rem;
+        font-weight: 700; font-size: 1.25rem; color: var(--color-primary); border-bottom: 1px solid var(--border-color);
+        white-space: nowrap; overflow: hidden;
+    }
+    .nav-pills .nav-link {
+        color: var(--bs-secondary-color); font-weight: 500; margin: 4px 12px; padding: 12px 16px;
+        white-space: nowrap; overflow: hidden; display: flex; align-items: center; height: 48px; border-radius: 8px;
+    }
+    .nav-pills .nav-link:hover { background-color: var(--bs-tertiary-bg); color: var(--bs-body-color); }
+    .nav-pills .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); }
+    .nav-pills .nav-link .icon-box { width: 24px; text-align: center; flex-shrink: 0; font-size: 1.1rem; }
+    .nav-pills .nav-link .nav-text { margin-left: 12px; }
+
+    /* --- 2. 主内容区 --- */
+    .main-content { flex: 1; background: var(--bg-main); padding: 1.5rem 2rem; overflow-y: auto; }
+
+    /* --- 3. 右侧工具栏 (PC) --- */
+    .sidebar-tools {
+        width: var(--sidebar-width); background: var(--bs-body-bg); border-left: 1px solid var(--border-color);
+        display: flex; flex-direction: column; z-index: 1020;
+    }
+    .top-toolbar {
+        height: var(--header-height); border-bottom: 1px solid var(--border-color);
+        display: flex; align-items: center; justify-content: flex-end; padding: 0 1.5rem;
+    }
+    .tool-icon {
+        width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+        cursor: pointer; color: var(--bs-secondary-color);
+    }
+    .tool-icon:hover { background-color: var(--bs-tertiary-bg); color: var(--bs-body-color); }
+
+    /* --- 4. 响应式适配 --- */
+    /* 平板: 收缩侧边栏 */
+    @media (min-width: 768px) and (max-width: 1024px) {
+        .sidebar-nav { width: var(--nav-width-collapsed); }
+        .brand-area { padding: 0; justify-content: center; } .brand-area span { display: none; }
+        .nav-pills .nav-link { justify-content: center; padding: 12px 0; }
+        .nav-pills .nav-link .nav-text { display: none; }
+    }
+    /* 手机: 隐藏侧边栏, 调整工具栏, 显示 Dock */
+    @media (max-width: 767.98px) {
+        .sidebar-nav { display: none; }
+        .sidebar-tools {
+            width: 100%; height: 60px; position: fixed; top: 0; left: 0; border: none; border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-tools .widgets { display: none; }
+        .top-toolbar { width: 100%; border: none; }
+        .main-content { margin-top: 60px; margin-bottom: var(--dock-height); padding: 1rem; }
+        .mobile-dock { display: flex !important; }
+    }
+
+    /* --- 5. 移动端组件 (Dock & Sheet) --- */
+    .mobile-dock {
+        display: none; position: fixed; bottom: 0; left: 0; right: 0; height: var(--dock-height);
+        background: var(--bs-body-bg); border-top: 1px solid var(--border-color); z-index: 1040;
+        justify-content: space-around; align-items: center; padding-bottom: env(safe-area-inset-bottom);
+    }
+    .dock-tab {
+        flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;
+        color: var(--bs-secondary-color); border: none; background: transparent;
+    }
+    .dock-tab i { font-size: 1.25rem; margin-bottom: 3px; }
+    .dock-tab span { font-size: 0.7rem; font-weight: 500; }
+    .dock-tab.active { color: var(--color-primary); }
+
+    .bottom-sheet-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s;
+    }
+    .bottom-sheet-backdrop.show { opacity: 1; visibility: visible; }
+    .bottom-sheet {
+        position: fixed; bottom: 0; left: 0; right: 0; background: var(--bs-body-bg); z-index: 1060;
+        border-radius: 1.5rem 1.5rem 0 0; padding: 1.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+        transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    }
+    .bottom-sheet.show { transform: translateY(0); }
+    .sheet-handle { width: 40px; height: 4px; background: var(--bs-secondary-bg); border-radius: 2px; margin: -10px auto 20px; }
+    .sheet-item {
+        padding: 16px; display: flex; align-items: center; font-size: 1rem; color: var(--bs-body-color);
+        border-bottom: 1px solid var(--border-color);
+    }
+    .sheet-item:last-child { border: none; }
+    .sheet-item:active { background-color: var(--bs-tertiary-bg); border-radius: 8px; }
+
+    /* --- 6. Toast --- */
+    #toast-container {
+        position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 2000;
+        display: flex; flex-direction: column; gap: 10px; width: 90%; max-width: 300px; pointer-events: none;
+    }
+    .custom-toast {
+        background: var(--bs-body-bg); color: var(--bs-body-color); border: 1px solid var(--border-color);
+        padding: 12px 20px; border-radius: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        opacity: 0; transform: translateY(20px); display: flex; align-items: center; justify-content: center;
+        font-weight: 500; font-size: 0.9rem; pointer-events: auto;
+    }
+    .custom-toast.show { opacity: 1; transform: translateY(0); }
+
+    /* --- Widget 辅助样式 --- */
+    .ls-1 { letter-spacing: 1px; } /* 增加标题字间距，更显高级 */
+
+    /* 时间轴暗黑模式适配 */
+    [data-bs-theme="dark"] .timeline .bg-white {
+        background-color: var(--bs-body-bg) !important; /* 暗黑模式下小圆点的背景色修正 */
+    }
+  </style>
+</head>
+<!-- 这里的 HTML 结构与之前一致，不再重复，保持原有的 body 结构 -->
 <body>
   <div id="app">
-    <nav class="nav" id="nav">
-      <div class="logo">TOOLS</div>
-      <ul id="nav-list"></ul>
+    <nav class="sidebar-nav">
+      <div class="brand-area"><i class="fas fa-cube me-2 fs-4"></i><span>SysTools</span></div>
+      <div class="py-3 flex-grow-1 overflow-auto"><ul class="nav nav-pills flex-column" id="nav-list"></ul></div>
     </nav>
-
-    <main class="main" id="main-content">
-      <div class="page" data-page="home">🏠 首页内容</div>
-      <div class="page" data-page="fileexplorer" style="display:none;">📁 文件浏览器内容</div>
+    <main class="main-content" id="main-content">
+      <div class="page" data-page="home"></div>
+      <div class="page" data-page="fileexplorer" style="display:none;"></div>
       <div class="page" data-page="webshell" style="display:none;"></div>
       <div class="page" data-page="servicemanager" style="display:none;"></div>
       <div class="page" data-page="sysinfo" style="display:none;"></div>
-
+      <div class="page" data-page="logs" style="display:none;"></div>
+      <div class="page" data-page="network" style="display:none;"></div>
     </main>
+<!-- ... 上面的代码保持不变 ... -->
 
-    <aside class="sidebar">
-      <div class="topbar">
-        <div class="topbar-icons">
-          <div class="icon" id="notify" title="通知">🔔</div>
-          <div class="icon" id="theme-toggle" title="主题切换">🌗</div>
-          <div class="icon" id="settings" title="设置">⚙️</div>
-          <div class="icon user-menu" title="用户">
-            👤
-            <div class="user-dropdown hidden">
-              <div>设置</div>
-              <div>退出</div>
-            </div>
+<!-- 右侧工具栏 -->
+<aside class="sidebar-tools">
+  <div class="top-toolbar">
+    <!-- ... 顶栏图标保持不变 ... -->
+    <div class="d-flex gap-2 align-items-center">
+      <div class="tool-icon" id="notify" title="通知"><i class="far fa-bell"></i></div>
+      <div class="tool-icon" id="theme-toggle" title="外观"><i class="fas fa-adjust"></i></div>
+      <div class="tool-icon" id="settings" title="设置"><i class="fas fa-sliders-h"></i></div>
+      
+      <div class="dropdown position-relative">
+          <div class="tool-icon" id="userMenuBtn" role="button">
+             <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold" 
+                  style="width: 32px; height: 32px; font-size: 12px;">AD</div>
           </div>
-        </div>
-      </div>
-      <div class="widgets">
-        <div class="widget notify-widget">
-          <h3>通知中心</h3>
-          <ul id="notify-list">
-            <li>🔔 欢迎使用</li>
+          <ul class="dropdown-menu dropdown-menu-end mt-2 d-none shadow" id="userDropdown">
+            <li><a class="dropdown-item" href="#">个人资料</a></li>
+            <li><a class="dropdown-item" href="#">系统设置</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#">退出登录</a></li>
           </ul>
-        </div>
       </div>
-    </aside>
+    </div>
   </div>
+  
+  <!-- ↓↓↓↓↓ 这里是新增的静态部件 ↓↓↓↓↓ -->
+  <div class="widgets p-4 overflow-auto flex-grow-1">
+      
+      
 
-  <div class="dock" id="dock"></div>
-  <div id="dock-menu" class="dock-menu hidden"></div>
-
+  </div>
+  <!-- ↑↑↑↑↑ 新增部分结束 ↑↑↑↑↑ -->
+</aside>
+  </div>
+  <div class="mobile-dock" id="dock"></div>
+  <div class="bottom-sheet-backdrop" id="sheet-backdrop"></div>
+  <div class="bottom-sheet" id="sheet-menu">
+      <div class="sheet-handle"></div>
+      <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+          <h5 class="m-0 fw-bold">更多功能</h5>
+          <button class="btn btn-sm btn-close" id="sheet-close"></button>
+      </div>
+      <div id="sheet-list"></div>
+  </div>
+  <div id="toast-container"></div>
   <script type="module" src="./assets/app.js"></script>
   <script type="module" src="./assets/pages/fileexplorer.js"></script>
   <script type="module" src="./assets/pages/webshell.js"></script>
   <script type="module" src="./assets/pages/servicemanager.js"></script>
   <script type="module" src="./assets/pages/sysinfo.js"></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
