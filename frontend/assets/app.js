@@ -9,6 +9,11 @@ const NAV_DATA = [
     { icon: '<i class="fas fa-terminal"></i>', label: '命令执行', page: 'webshell' },
     { icon: '<i class="fas fa-server"></i>', label: '服务管理', page: 'servicemanager' },
     { icon: '<i class="fas fa-chart-pie"></i>', label: '资源监控', page: 'sysinfo' },
+    { icon: '<i class="fas fa-laptop-code"></i>', label: '网页终端', page: 'webterminal' },
+    { icon: '<i class="fas fa-box"></i>', label: '容器管理', page: 'dockermanager' },
+    { icon: '<i class="fas fa-calendar-alt"></i>', label: '计划任务', page: 'taskscheduler' },
+    { icon: '<i class="fas fa-shield-alt"></i>', label: '系统防火墙', page: 'firewall' },
+    { icon: '<i class="fas fa-cog"></i>', label: '系统设置', page: 'settings' },
 ];
 
 /** 全局常量 */
